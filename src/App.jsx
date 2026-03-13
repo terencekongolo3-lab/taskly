@@ -110,11 +110,18 @@ const BackBtn = ({ onPress, light }) => (
     color:light?W:N, fontSize:13, fontWeight:700, cursor:"pointer", padding:"6px 0",
     display:"flex", alignItems:"center", gap:4 }}>← Terug</button>
 );
-const Av = ({ label, color, size=44 }) => (
-  <div style={{ width:size, height:size, borderRadius:size*0.28, background:color,
-    display:"flex", alignItems:"center", justifyContent:"center",
-    color:W, fontWeight:800, fontSize:size*0.33, flexShrink:0 }}>{label}</div>
-);
+const Av = ({ label, color, size=44, src }) => {
+  const [imgErr, setImgErr] = useState(false);
+  if (src && !imgErr) return (
+    <img src={src} alt={label} onError={() => setImgErr(true)}
+      style={{ width:size, height:size, borderRadius:size*0.28, objectFit:"cover", flexShrink:0 }}/>
+  );
+  return (
+    <div style={{ width:size, height:size, borderRadius:size*0.28, background:color,
+      display:"flex", alignItems:"center", justifyContent:"center",
+      color:W, fontWeight:800, fontSize:size*0.33, flexShrink:0 }}>{label}</div>
+  );
+};
 const Input = ({ value, onChange, placeholder, type="text" }) => (
   <input type={type} value={value} onChange={onChange} placeholder={placeholder}
     style={{ width:"100%", padding:"11px 14px", borderRadius:10, border:`1px solid ${BD}`,
@@ -406,7 +413,7 @@ const [role, setRole]   = useState(null);
           <div style={{ background:`linear-gradient(135deg,${N},#2d2850)`, padding:"14px 16px 22px" }}>
             <BackBtn light onPress={() => go(null)}/>
             <div style={{ display:"flex", gap:14, alignItems:"center", marginTop:12 }}>
-              <Av label={(p.naam||'??').slice(0,2).toUpperCase()} color="#3B82F6" size={56}/>
+              <Av label={(p.naam||'??').slice(0,2).toUpperCase()} color="#3B82F6" size={56} src={p.foto_url}/>
               <div>
                 <div style={{ fontFamily:"Georgia,serif", fontSize:20, fontWeight:700, color:W }}>{p.naam}</div>
                 <div style={{ fontSize:12, color:"rgba(255,255,255,0.55)", marginTop:2 }}>📍 {p.stad}</div>
@@ -477,7 +484,7 @@ const [role, setRole]   = useState(null);
               style={{ background:W, borderRadius:18, padding:16, marginBottom:12,
                 border:`1px solid ${BD}`, cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.05)" }}>
               <div style={{ display:"flex", gap:12 }}>
-                <Av label={(p.naam||'??').slice(0,2).toUpperCase()} color="#3B82F6"/>
+                <Av label={(p.naam||'??').slice(0,2).toUpperCase()} color="#3B82F6" src={p.foto_url}/>
                 <div style={{ flex:1 }}>
                   <div style={{ fontWeight:700, fontSize:15, color:TX }}>{p.naam}</div>
                   <div style={{ fontSize:12, color:MU, marginTop:1 }}>📍 {p.stad}</div>
