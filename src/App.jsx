@@ -281,24 +281,31 @@ const [role, setRole]   = useState(null);
     );
   };
 
-  // Stad autocomplete + geocode
+  // Stad autocomplete — lat/lon wordt ALLEEN gezet bij klik op suggestie, niet automatisch
   useEffect(() => {
     if (!manualStad.trim()) {
       setSuggesties([]); setShowSuggesties(false);
-      setUserLat(null); setUserLon(null);
       return;
     }
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(manualStad + ', Nederland')}&format=json&limit=5&addressdetails=1&countrycodes=nl`);
+        const q = manualStad.trim().toLowerCase();
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(manualStad + ', Nederland')}&format=json&limit=8&addressdetails=1&countrycodes=nl`);
         const data = await res.json();
-        const suggestions = data.map(r => ({
-          label: r.address?.city || r.address?.town || r.address?.village || r.display_name.split(',')[0],
-          lat: parseFloat(r.lat), lon: parseFloat(r.lon)
-        })).filter((s,i,a) => a.findIndex(x=>x.label===s.label)===i);
+        const suggestions = data
+          .filter(r => {
+            const name = (r.address?.city || r.address?.town || r.address?.village || '').toLowerCase();
+            // Alleen resultaten waarvan de naam begint met of de zoekopdracht bevat
+            return name && (name.startsWith(q) || name.includes(q) || q.split(' ').every(w => name.includes(w)));
+          })
+          .map(r => ({
+            label: r.address?.city || r.address?.town || r.address?.village,
+            lat: parseFloat(r.lat), lon: parseFloat(r.lon)
+          }))
+          .filter((s,i,a) => s.label && a.findIndex(x=>x.label===s.label)===i)
+          .slice(0, 5);
         setSuggesties(suggestions);
         setShowSuggesties(suggestions.length > 0);
-        if (data[0]) { setUserLat(parseFloat(data[0].lat)); setUserLon(parseFloat(data[0].lon)); }
       } catch {}
     }, 400);
     return () => clearTimeout(t);
