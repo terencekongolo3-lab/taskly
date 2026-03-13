@@ -239,6 +239,8 @@ const [role, setRole]   = useState(null);
   
   const [radius, setRadius]   = useState(40);
   const [filterTask, setFT]   = useState(null);
+  const [minRating, setMinRating] = useState(0);
+  const [searchPage, setSearchPage] = useState(0);
 
   const [userLat, setUserLat]     = useState(null);
   const [userLon, setUserLon]     = useState(null);
@@ -288,7 +290,7 @@ const [role, setRole]   = useState(null);
     }
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(manualStad + ', Nederland')}&format=json&limit=5&addressdetails=1`);
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(manualStad + ', Nederland')}&format=json&limit=5&addressdetails=1&countrycodes=nl`);
         const data = await res.json();
         const suggestions = data.map(r => ({
           label: r.address?.city || r.address?.town || r.address?.village || r.display_name.split(',')[0],
@@ -340,16 +342,7 @@ const [role, setRole]   = useState(null);
   const [hasPlusAcc, setPlus]   = useState(false);
   const [agendaItems, setAgenda]= useState([]);
   
-  const go = (s, d=null) => {
-    if (s) window.history.pushState({ sub: s }, '');
-    setSub(s); setSubD(d);
-  };
-
-  useEffect(() => {
-    const onPop = () => { setSub(null); setSubD(null); };
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
-  }, []);
+  const go = (s, d=null) => { setSub(s); setSubD(d); };
   if (!user) return <Auth onLogin={(u, p) => { setUser(u); setProfiel(p); setRole(p?.rol ?? null); }} />;
 
   const unreadMatches = matches.filter(m => m.status === "chatting" && !m.myConfirm).length;
@@ -655,6 +648,7 @@ const [role, setRole]   = useState(null);
       const taskLabel = TASKS.find(t => t.id === filterTask)?.label;
       const taskMatch = !filterTask || (p.specialisaties && p.specialisaties.includes(taskLabel));
       if (!taskMatch) return false;
+      if (p.rating && p.rating < minRating) return false;
       if (userLat && userLon) {
         if (p.lat && p.lon) return haversine(userLat, userLon, p.lat, p.lon) <= radius;
         // Vakman heeft geen coords: toon alleen als geen locatiefilter actief is
@@ -672,13 +666,13 @@ const [role, setRole]   = useState(null);
               <Av label={(p.naam||'??').slice(0,2).toUpperCase()} color="#3B82F6" size={56} src={p.foto_url}/>
               <div>
                 <div style={{ fontFamily:"Georgia,serif", fontSize:20, fontWeight:700, color:W }}>{p.naam}</div>
-                <div style={{ fontSize:12, color:"rgba(255,255,255,0.55)", marginTop:2 }}>📍 {p.stad}</div>
+                <div style={{ fontSize:12, color:"rgba(255,255,255,0.55)", marginTop:2 }}>{p.stad}</div>
                 <Stars r={p.rating||4.5}/>
               </div>
             </div>
             <div style={{ display:"flex", gap:7, marginTop:12, flexWrap:"wrap" }}>
-              {p.verified ? <Pill color="#ECFDF5" bg="rgba(5,150,105,0.3)">🔍 KvK geverifieerd</Pill>
-                : <Pill color="#FEF3C7" bg="rgba(217,119,6,0.3)">⏳ Niet geverifieerd</Pill>}
+              {p.verified ? <Pill color="#ECFDF5" bg="rgba(5,150,105,0.3)">KvK geverifieerd</Pill>
+                : <Pill color="#FEF3C7" bg="rgba(217,119,6,0.3)">Niet geverifieerd</Pill>}
             </div>
           </div>
           <div style={{ padding:16 }}>
@@ -695,8 +689,11 @@ const [role, setRole]   = useState(null);
               <div style={{ fontSize:13, color:MU, lineHeight:1.6, marginBottom:14 }}>
                 Vrijblijvend. <strong style={{color:G}}>Betaal alleen als je inhuurt.</strong>
               </div>
-              <OBtn label="📄 Offerte aanvragen" full onClick={() => go(null)}/>
-              <div style={{ marginTop:10 }}><OBtn label="💬 Start chat" full outline onClick={() => go(null)}/></div>
+              <OBtn label="Offerte aanvragen" full onClick={() => {
+                const taskId = TASKS.find(t => t.label === p.specialisaties?.[0])?.id;
+                if(taskId) setPTasks([taskId]); else setPTasks([]);
+                setPStep(2); setTab("post"); go(null);
+              }}/>
             </Card>
             <Card style={{ background:"#F9FAFB" }}>
               <Lbl>Transparantie</Lbl>
@@ -757,48 +754,73 @@ const [role, setRole]   = useState(null);
             )}
           </div>
           {locError && <div style={{ fontSize:12, color:"#FCA5A5", marginBottom:6 }}>{locError}</div>}
-          {locLoading && <div style={{ fontSize:12, color:"rgba(255,255,255,0.6)", marginBottom:6 }}>📍 Locatie bepalen...</div>}
+          {locLoading && <div style={{ fontSize:12, color:"rgba(255,255,255,0.6)", marginBottom:6 }}>Locatie bepalen...</div>}
 
           <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:"rgba(255,255,255,0.6)", marginBottom:4 }}>
-            <span>📍 Zoekgebied</span><span style={{ fontWeight:700, color:O }}>{radius} km</span>
+            <span>Zoekgebied</span><span style={{ fontWeight:700, color:O }}>{radius} km</span>
           </div>
           <input type="range" min={5} max={100} step={5} value={radius} onChange={e=>setRadius(Number(e.target.value))} style={{ width:"100%", accentColor:O }}/>
         </div>
-        <div style={{ padding:"10px 16px 4px", display:"flex", gap:7, overflowX:"auto", paddingBottom:10 }}>
-          <span onClick={() => setFT(null)} style={{ background:!filterTask?N:W, color:!filterTask?W:MU,
-            border:`1px solid ${BD}`, borderRadius:20, padding:"5px 12px", fontSize:12, fontWeight:700,
-            cursor:"pointer", whiteSpace:"nowrap", flexShrink:0 }}>Alles</span>
-          {TASKS.map(t => (
-            <span key={t.id} onClick={() => setFT(filterTask===t.id?null:t.id)}
-              style={{ background:filterTask===t.id?N:W, color:filterTask===t.id?W:MU,
-                border:`1px solid ${BD}`, borderRadius:20, padding:"5px 12px", fontSize:12,
-                cursor:"pointer", whiteSpace:"nowrap", flexShrink:0 }}>
-              {t.icon} {t.label}
-            </span>
-          ))}
+        <div style={{ padding:"10px 16px 4px" }}>
+          <div style={{ display:"flex", gap:7, overflowX:"auto", paddingBottom:8 }}>
+            {TASKS.map(t => (
+              <span key={t.id} onClick={() => { setFT(filterTask===t.id?null:t.id); setSearchPage(0); }}
+                style={{ background:filterTask===t.id?N:W, color:filterTask===t.id?W:MU,
+                  border:`1px solid ${BD}`, borderRadius:20, padding:"5px 12px", fontSize:12,
+                  cursor:"pointer", whiteSpace:"nowrap", flexShrink:0, fontWeight:filterTask===t.id?700:400 }}>
+                {t.label}
+              </span>
+            ))}
+          </div>
+          <div style={{ display:"flex", gap:8, alignItems:"center", paddingBottom:8, flexWrap:"wrap" }}>
+            <span style={{ fontSize:12, color:MU }}>Min. beoordeling:</span>
+            {[0,3,3.5,4,4.5].map(r => (
+              <span key={r} onClick={() => setMinRating(r)}
+                style={{ background:minRating===r?N:W, color:minRating===r?W:MU,
+                  border:`1px solid ${BD}`, borderRadius:20, padding:"4px 10px", fontSize:12,
+                  cursor:"pointer", whiteSpace:"nowrap" }}>
+                {r === 0 ? "Alle" : r + "+"}
+              </span>
+            ))}
+          </div>
         </div>
         <div style={{ padding:"4px 16px 4px", fontSize:12, color:MU }}>
           <strong style={{color:TX}}>{filtered.length} vakmensen</strong> gevonden
         </div>
         <div style={{ padding:"4px 16px" }}>
-          {filtered.map((p, i) => (
+          {filtered.slice(searchPage*10, searchPage*10+10).map((p, i) => (
             <div key={p.id} onClick={() => go("pro-detail", p)}
-              style={{ background:W, borderRadius:18, padding:16, marginBottom:12,
-                border:`1px solid ${BD}`, cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.05)" }}>
+              style={{ background:W, borderRadius:14, padding:14, marginBottom:10,
+                border:`1px solid ${BD}`, cursor:"pointer", boxShadow:"0 1px 4px rgba(0,0,0,0.05)" }}>
               <div style={{ display:"flex", gap:12 }}>
                 <Av label={(p.naam||'??').slice(0,2).toUpperCase()} color="#3B82F6" src={p.foto_url}/>
-                <div style={{ flex:1 }}>
-                  <div style={{ fontWeight:700, fontSize:15, color:TX }}>{p.naam}</div>
-                  <div style={{ fontSize:12, color:MU, marginTop:1 }}>📍 {p.stad}</div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontWeight:700, fontSize:14, color:TX }}>{p.naam}</div>
+                  <div style={{ fontSize:12, color:MU, marginTop:1 }}>{p.stad}</div>
                   <Stars r={p.rating||4.5}/>
-                  <div style={{ marginTop:5, display:"flex", gap:6, flexWrap:"wrap" }}>
-                    {p.verified && <Pill color={N} bg="#EEF2FF" small>🔍 Geverifieerd</Pill>}
-                  </div>
+                  {p.verified && <span style={{ fontSize:11, color:G, marginTop:3, display:"block" }}>Geverifieerd</span>}
                 </div>
+                <span style={{ color:MU, fontSize:16, flexShrink:0, alignSelf:"center" }}>›</span>
               </div>
-              <div style={{ marginTop:10, fontSize:12, color:p.beschikbaarheid==="Deze week"?G:"#D97706" }}>● {p.beschikbaarheid}</div>
+              <div style={{ marginTop:8, fontSize:11, color:p.beschikbaarheid==="Deze week"?G:MU }}>{p.beschikbaarheid}</div>
             </div>
           ))}
+          {filtered.length > 10 && (
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 0", marginBottom:16 }}>
+              <button onClick={() => setSearchPage(p => Math.max(0, p-1))} disabled={searchPage===0}
+                style={{ padding:"8px 16px", borderRadius:20, border:`1px solid ${BD}`, background:W,
+                  fontSize:13, cursor:searchPage===0?"not-allowed":"pointer", color:searchPage===0?BD:N, fontWeight:600 }}>
+                Vorige
+              </button>
+              <span style={{ fontSize:12, color:MU }}>{searchPage*10+1}–{Math.min((searchPage+1)*10, filtered.length)} van {filtered.length}</span>
+              <button onClick={() => setSearchPage(p => p+1)} disabled={(searchPage+1)*10 >= filtered.length}
+                style={{ padding:"8px 16px", borderRadius:20, border:`1px solid ${BD}`, background:(searchPage+1)*10>=filtered.length?W:N,
+                  fontSize:13, cursor:(searchPage+1)*10>=filtered.length?"not-allowed":"pointer",
+                  color:(searchPage+1)*10>=filtered.length?BD:W, fontWeight:600 }}>
+                Volgende
+              </button>
+            </div>
+          )}
           <div style={{ height:20 }}/>
         </div>
       </div>
