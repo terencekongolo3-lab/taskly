@@ -783,7 +783,7 @@ const [role, setRole]   = useState(null);
           <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:"rgba(255,255,255,0.6)", marginBottom:4 }}>
             <span>Zoekgebied</span><span style={{ fontWeight:700, color:O }}>{radius} km</span>
           </div>
-          <input type="range" min={5} max={100} step={5} value={radius} onChange={e=>setRadius(Number(e.target.value))} style={{ width:"100%", accentColor:O }}/>
+          <input type="range" min={5} max={100} step={5} value={radius} onChange={e=>setRadius(Number(e.target.value))} style={{ width:"100%", accentColor:CU }}/>
         </div>
         <div style={{ padding:"10px 16px 4px" }}>
           <div style={{ display:"flex", gap:7, overflowX:"auto", paddingBottom:8 }}>
