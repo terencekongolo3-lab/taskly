@@ -194,8 +194,12 @@ export default function App() {
   const [profiel, setProfiel] = useState(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setUser(session?.user ?? null);
+      if (session?.user) {
+        const { data: p } = await supabase.from("profiles").select("*").eq("id", session.user.id).single();
+        if (p) { setProfiel(p); setRole(p.rol); }
+      }
     });
     supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
@@ -203,12 +207,27 @@ export default function App() {
   }, []);
 
   const [pros, setPros] = useState([]);
+  const [klusCount, setKlusCount] = useState(0);
+  const [openKlussen, setOpenKlussen] = useState([]);
 
-useEffect(() => {
-supabase.from('vakmensen').select('*').then(({ data, error }) => {
-  console.log('data:', data, 'error:', error);
-  if (data) setPros(data);
-});}, []);
+  useEffect(() => {
+    supabase.from('vakmensen').select('*').then(({ data }) => {
+      if (data) setPros(data);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from('klussen').select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .then(({ count }) => { if (count != null) setKlusCount(count); });
+  }, [user]);
+
+  useEffect(() => {
+    if (!user || role !== 'vakman') return;
+    supabase.from('klussen').select('*, profiles(naam, stad)').eq('status', 'actief').order('created_at', { ascending: false }).limit(20)
+      .then(({ data }) => { if (data) setOpenKlussen(data); });
+  }, [user, role]);
 const [role, setRole]   = useState(null);
   const [tab, setTab]     = useState("home");
   const [sub, setSub]     = useState(null);
@@ -216,6 +235,56 @@ const [role, setRole]   = useState(null);
   
   const [radius, setRadius]   = useState(40);
   const [filterTask, setFT]   = useState(null);
+
+  const [userLat, setUserLat]     = useState(null);
+  const [userLon, setUserLon]     = useState(null);
+  const [userStad, setUserStad]   = useState(null);
+  const [locLoading, setLocLoad]  = useState(false);
+  const [locError, setLocError]   = useState(null);
+  const [manualStad, setManual]   = useState("");
+
+  const haversine = (lat1, lon1, lat2, lon2) => {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+  };
+
+  const detectLocation = () => {
+    setLocLoad(true);
+    setLocError(null);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        const { latitude: lat, longitude: lon } = pos.coords;
+        setUserLat(lat);
+        setUserLon(lon);
+        try {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`);
+          const data = await res.json();
+          setUserStad(data.address?.city || data.address?.town || data.address?.village || "Jouw locatie");
+        } catch { setUserStad("Jouw locatie"); }
+        setLocLoad(false);
+      },
+      () => {
+        setLocError("Kon locatie niet bepalen. Typ je stad hieronder.");
+        setLocLoad(false);
+      }
+    );
+  };
+
+  // Geocode handmatig ingevoerde stad na 700ms stilstand
+  useEffect(() => {
+    if (!manualStad.trim()) { setUserLat(null); setUserLon(null); return; }
+    const t = setTimeout(async () => {
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(manualStad + ', Nederland')}&format=json&limit=1`);
+        const data = await res.json();
+        if (data[0]) { setUserLat(parseFloat(data[0].lat)); setUserLon(parseFloat(data[0].lon)); }
+      } catch {}
+    }, 700);
+    return () => clearTimeout(t);
+  }, [manualStad]);
   
   const [pStep, setPStep]     = useState(1);
   const [pTasks, setPTasks]   = useState([]);
@@ -224,7 +293,30 @@ const [role, setRole]   = useState(null);
   const [pPhoto, setPPhoto]   = useState(null);
   const [pTiming, setPTiming] = useState("");
   const [pPosted, setPPosted] = useState(false);
-  
+  const [pPosting, setPPosting] = useState(false);
+  const [offBedrag, setOffBedrag] = useState("");
+  const [offBericht, setOffBericht] = useState("");
+  const [offSending, setOffSending] = useState(false);
+  const [offSent, setOffSent] = useState(false);
+
+  const postKlus = async () => {
+    setPPosting(true);
+    const { error } = await supabase.from('klussen').insert({
+      user_id: user.id,
+      taken: pTasks,
+      antwoorden: pAnswers,
+      omschrijving: pDesc || null,
+      timing: pTiming || null,
+      stad: userStad || manualStad || null,
+      lat: userLat || null,
+      lon: userLon || null,
+    });
+    setPPosting(false);
+    if (error) { alert('Fout bij opslaan: ' + error.message); return; }
+    setKlusCount(c => c + 1);
+    setPPosted(true);
+  };
+
   const [matches, setMatches]   = useState(INIT_MATCHES);
   const [chatMsg, setChatMsg]   = useState("");
   const [calOpen, setCalOpen]   = useState(false);
@@ -233,7 +325,7 @@ const [role, setRole]   = useState(null);
   const [agendaItems, setAgenda]= useState([]);
   
   const go = (s, d=null) => { setSub(s); setSubD(d); };
-  if (!user) return <Auth onLogin={(u, p) => { setUser(u); setProfiel(p); }} />;
+  if (!user) return <Auth onLogin={(u, p) => { setUser(u); setProfiel(p); setRole(p?.rol ?? null); }} />;
 
   const unreadMatches = matches.filter(m => m.status === "chatting" && !m.myConfirm).length;
 
@@ -256,6 +348,46 @@ const [role, setRole]   = useState(null);
             onClick={() => setTab("search")}>🔍 Zoek vakman</button>
         </div>
       </div>
+
+      {role === "vakman" && openKlussen.length > 0 && (
+      <div style={{ margin:"16px 16px 4px" }}>
+        <div style={{ fontFamily:"Georgia,serif", fontSize:16, fontWeight:700, color:TX, marginBottom:12 }}>
+          📋 Nieuwe klussen
+        </div>
+        {openKlussen.map(k => {
+          const taskLabel = TASKS.find(t => t.id === k.taken?.[0])?.label || k.taken?.[0] || "Klus";
+          const taskIcon  = TASKS.find(t => t.id === k.taken?.[0])?.icon || "🔨";
+          const timing = { spoed:"⚡ Spoed", "2weken":"Binnen 2 weken", maand:"Binnen een maand", flex:"Geen haast" }[k.timing] || "";
+          return (
+            <div key={k.id} onClick={() => { setOffSent(false); setOffBedrag(""); setOffBericht(""); go("klus-detail", k); }}
+              style={{ background:W, borderRadius:16, marginBottom:10, padding:"14px 16px",
+                border:`1px solid ${BD}`, boxShadow:"0 2px 8px rgba(0,0,0,0.05)", cursor:"pointer" }}>
+              <div style={{ display:"flex", gap:12, alignItems:"flex-start" }}>
+                <div style={{ width:44, height:44, borderRadius:12, background:"#EEF2FF",
+                  display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>{taskIcon}</div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontWeight:700, fontSize:15, color:TX, marginBottom:2 }}>
+                    {k.taken?.length > 1 ? `${taskLabel} +${k.taken.length-1}` : taskLabel}
+                  </div>
+                  <div style={{ fontSize:12, color:MU }}>
+                    📍 {k.profiles?.stad || k.stad || "Onbekend"} · {k.profiles?.naam || "Klant"}
+                  </div>
+                  {k.omschrijving && <div style={{ fontSize:12, color:MU, marginTop:4, lineHeight:1.5, overflow:"hidden", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>{k.omschrijving}</div>}
+                  <div style={{ display:"flex", gap:6, marginTop:8, flexWrap:"wrap" }}>
+                    {timing && <Pill small>{timing}</Pill>}
+                    {k.taken?.slice(1).map(tid => {
+                      const t = TASKS.find(t=>t.id===tid);
+                      return t ? <Pill key={tid} small>{t.icon} {t.label}</Pill> : null;
+                    })}
+                  </div>
+                </div>
+                <span style={{ color:MU, fontSize:18, flexShrink:0 }}>›</span>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      )}
 
       {role === "vakman" && (
       <div style={{ margin:"16px 16px 4px" }}>
@@ -348,6 +480,97 @@ const [role, setRole]   = useState(null);
     </div>
   );
 
+  // ── KLUS DETAIL (voor vakmensen) ─────────────────────────────────────────
+  if (sub === "klus-detail") {
+    const klus = subD;
+    if (!klus) return null;
+    const timing = { spoed:"⚡ Met spoed", "2weken":"Binnen 2 weken", maand:"Binnen een maand", flex:"Geen haast" }[klus.timing] || "";
+
+    const stuurOfferte = async () => {
+      if (!offBericht.trim()) return;
+      setOffSending(true);
+      const { error } = await supabase.from('offertes').insert({
+        klus_id: klus.id,
+        vakman_id: user.id,
+        bedrag: offBedrag ? parseInt(offBedrag) : null,
+        bericht: offBericht.trim(),
+      });
+      setOffSending(false);
+      if (error) { alert('Fout: ' + error.message); return; }
+      setOffSent(true);
+    };
+
+    return (
+      <Phone>
+        <div style={{ overflowY:"auto", flex:1 }}>
+          <div style={{ background:`linear-gradient(135deg,${N},#2d2850)`, padding:"24px 20px 28px" }}>
+            <BackBtn light onPress={() => go(null)} />
+            <div style={{ paddingTop:8 }}>
+              <div style={{ fontSize:11, color:"rgba(255,255,255,0.5)", letterSpacing:2, textTransform:"uppercase", marginBottom:8 }}>
+                Klus aanvraag
+              </div>
+              <div style={{ fontFamily:"Georgia,serif", fontSize:22, fontWeight:800, color:W, marginBottom:4 }}>
+                {klus.taken?.map(tid => TASKS.find(t=>t.id===tid)?.label).filter(Boolean).join(", ")}
+              </div>
+              <div style={{ fontSize:13, color:"rgba(255,255,255,0.6)" }}>
+                📍 {klus.profiles?.stad || klus.stad || "Onbekend"} · {klus.profiles?.naam || "Klant"}
+              </div>
+            </div>
+          </div>
+
+          <div style={{ padding:"16px 16px 0" }}>
+            {klus.omschrijving && (
+              <div style={{ background:W, borderRadius:16, padding:16, marginBottom:12, border:`1px solid ${BD}` }}>
+                <div style={{ fontSize:11, fontWeight:700, color:MU, textTransform:"uppercase", letterSpacing:1, marginBottom:8 }}>Omschrijving</div>
+                <div style={{ fontSize:14, color:TX, lineHeight:1.7 }}>{klus.omschrijving}</div>
+              </div>
+            )}
+            <div style={{ background:W, borderRadius:16, padding:16, marginBottom:12, border:`1px solid ${BD}` }}>
+              <div style={{ fontSize:11, fontWeight:700, color:MU, textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>Details</div>
+              {timing && <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0", borderBottom:`1px solid ${BD}` }}>
+                <span style={{ fontSize:13, color:MU }}>Timing</span>
+                <span style={{ fontSize:13, fontWeight:600, color:TX }}>{timing}</span>
+              </div>}
+              {klus.taken?.length > 0 && <div style={{ display:"flex", justifyContent:"space-between", padding:"6px 0" }}>
+                <span style={{ fontSize:13, color:MU }}>Werkzaamheden</span>
+                <span style={{ fontSize:13, fontWeight:600, color:TX }}>{klus.taken.map(tid => TASKS.find(t=>t.id===tid)?.label).filter(Boolean).join(", ")}</span>
+              </div>}
+            </div>
+
+            {offSent ? (
+              <div style={{ background:"#ECFDF5", border:"1px solid #A7F3D0", borderRadius:16, padding:20, textAlign:"center" }}>
+                <div style={{ fontSize:40, marginBottom:8 }}>✅</div>
+                <div style={{ fontWeight:700, fontSize:16, color:"#065F46", marginBottom:4 }}>Offerte verstuurd!</div>
+                <div style={{ fontSize:13, color:"#047857" }}>De klant ontvangt je bericht en kan je offerte accepteren.</div>
+                <OBtn label="← Terug naar klussen" full onClick={() => { setOffSent(false); setOffBedrag(""); setOffBericht(""); go(null); }} style={{ marginTop:16 }}/>
+              </div>
+            ) : (
+              <div style={{ background:W, borderRadius:16, padding:16, border:`1px solid ${BD}`, marginBottom:80 }}>
+                <div style={{ fontSize:11, fontWeight:700, color:MU, textTransform:"uppercase", letterSpacing:1, marginBottom:12 }}>Stuur een offerte</div>
+                <div style={{ marginBottom:12 }}>
+                  <label style={{ fontSize:12, fontWeight:700, color:MU, display:"block", marginBottom:6 }}>Offertebedrag (€)</label>
+                  <input value={offBedrag} onChange={e => setOffBedrag(e.target.value)} type="number" placeholder="bijv. 1500"
+                    style={{ width:"100%", padding:"10px 12px", borderRadius:10, border:`1px solid ${BD}`, fontSize:14, outline:"none", boxSizing:"border-box" }}/>
+                </div>
+                <div style={{ marginBottom:4 }}>
+                  <label style={{ fontSize:12, fontWeight:700, color:MU, display:"block", marginBottom:6 }}>Jouw bericht *</label>
+                  <textarea value={offBericht} onChange={e => setOffBericht(e.target.value)} rows={4}
+                    placeholder="Introduceer jezelf en vertel waarom jij de beste keuze bent..."
+                    style={{ width:"100%", padding:"10px 12px", borderRadius:10, border:`1px solid ${BD}`, fontSize:13, outline:"none", resize:"none", boxSizing:"border-box", fontFamily:"inherit" }}/>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        {!offSent && (
+          <BottomBar>
+            <OBtn label={offSending ? "Versturen..." : "📨 Stuur offerte"} full onClick={stuurOfferte} disabled={offSending || !offBericht.trim()}/>
+          </BottomBar>
+        )}
+      </Phone>
+    );
+  }
+
   // ── PLUS UPSELL ──────────────────────────────────────────────────────────
   if (sub === "plus-upsell") return (
     <Phone>
@@ -403,9 +626,17 @@ const [role, setRole]   = useState(null);
 
   // ── SEARCH ────────────────────────────────────────────────────────────────
   const SearchScreen = () => {
-    const filtered = pros.filter(p =>
-      !filterTask || (p.specialisaties && p.specialisaties.includes(filterTask))
-    );
+    const filtered = pros.filter(p => {
+      const taskLabel = TASKS.find(t => t.id === filterTask)?.label;
+      const taskMatch = !filterTask || (p.specialisaties && p.specialisaties.includes(taskLabel));
+      if (!taskMatch) return false;
+      if (userLat && userLon) {
+        if (p.lat && p.lon) return haversine(userLat, userLon, p.lat, p.lon) <= radius;
+        // Vakman heeft geen coords: toon alleen als geen locatiefilter actief is
+        return !manualStad.trim() && !userStad;
+      }
+      return true;
+    });
     if (sub === "pro-detail") {
       const p = subD;
       return (
@@ -457,6 +688,37 @@ const [role, setRole]   = useState(null);
       <div style={{ overflowY:"auto", flex:1 }}>
         <div style={{ background:N, padding:"14px 16px 16px" }}>
           <div style={{ fontFamily:"Georgia,serif", fontSize:17, fontWeight:700, color:W, marginBottom:12 }}>Zoek een vakman</div>
+
+          {/* Locatie */}
+          {!userStad && !manualStad && (
+            <button onClick={detectLocation} disabled={locLoading}
+              style={{ width:"100%", background:"rgba(249,115,22,0.9)", color:W, border:"none",
+                borderRadius:10, padding:"11px 14px", fontSize:13, fontWeight:700,
+                cursor:locLoading?"not-allowed":"pointer", marginBottom:10, textAlign:"left" }}>
+              {locLoading ? "📍 Locatie bepalen..." : "📍 Gebruik mijn locatie (automatisch)"}
+            </button>
+          )}
+          {locError && <div style={{ fontSize:12, color:"#FCA5A5", marginBottom:6 }}>{locError}</div>}
+          {!userStad && (
+            <div style={{ position:"relative", marginBottom:10 }}>
+              <input value={manualStad} onChange={e => setManual(e.target.value)}
+                placeholder="Of typ je stad / postcode..."
+                style={{ width:"100%", padding:"10px 14px", borderRadius:10,
+                  border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.1)",
+                  color:W, fontSize:13, outline:"none", boxSizing:"border-box" }}/>
+            </div>
+          )}
+          {userStad && (
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
+              background:"rgba(5,150,105,0.25)", borderRadius:10, padding:"9px 14px", marginBottom:10 }}>
+              <span style={{ fontSize:13, color:"#A7F3D0", fontWeight:600 }}>📍 {userStad}</span>
+              <button onClick={() => { setUserLat(null); setUserLon(null); setUserStad(null); setManual(""); }}
+                style={{ background:"none", border:"none", color:"rgba(255,255,255,0.5)", fontSize:12, cursor:"pointer" }}>
+                Wijzigen
+              </button>
+            </div>
+          )}
+
           <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:"rgba(255,255,255,0.6)", marginBottom:4 }}>
             <span>📍 Zoekgebied</span><span style={{ fontWeight:700, color:O }}>{radius} km</span>
           </div>
@@ -698,7 +960,7 @@ const [role, setRole]   = useState(null);
           </div>
           <div style={{ height:80 }}/>
         </div>
-        <BottomBar><OBtn label="🚀 Klus plaatsen" full onClick={() => setPPosted(true)}/></BottomBar>
+        <BottomBar><OBtn label={pPosting ? "Bezig..." : "🚀 Klus plaatsen"} full onClick={postKlus} disabled={pPosting}/></BottomBar>
       </div>
     );
     return null;
@@ -981,7 +1243,7 @@ const [role, setRole]   = useState(null);
 
         <Card>
           <Lbl>Mijn activiteit</Lbl>
-          {[["📋","Geplaatste klussen","2"],["💬","Actieve chats",matches.length.toString()],["✅","Deals gesloten",matches.filter(m=>m.myConfirm&&m.proConfirm).length.toString()]].map(([ic,lb,val],i) => (
+          {[["📋","Geplaatste klussen",klusCount.toString()],["💬","Actieve chats",matches.length.toString()],["✅","Deals gesloten",matches.filter(m=>m.myConfirm&&m.proConfirm).length.toString()]].map(([ic,lb,val],i) => (
             <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
               padding:"10px 0", borderTop:i?`1px solid ${BD}`:"none" }}>
               <div style={{ display:"flex", gap:10 }}><span style={{ fontSize:18 }}>{ic}</span><span style={{ fontSize:14, color:TX }}>{lb}</span></div>
