@@ -1,32 +1,34 @@
 import { useState, useRef, useEffect } from "react";
 import { supabase } from "./supabase";
 import Auth from "./Auth";
+import { Flame, Shovel, Bathtub, House, Lightning, TreeEvergreen, PaintRoller, Flower, CookingPot, Wall, FrameCorners, Thermometer, Wrench, ArrowLeft, ArrowRight, MagnifyingGlass, ClipboardText, ChatCircle, User, CheckCircle, Star, MapPin, X, Check } from "@phosphor-icons/react";
 // ─── THEME ────────────────────────────────────────────────────────────────────
-const N = "#1B1F3B";       // navy
-const O = "#F97316";       // orange
-const G = "#059669";       // green
-const BG = "#F4F4F8";
+const N = "#0A1128";       // deep blue
+const CU = "#B59A7A";      // copper/gold accent
+const G = "#A3C1AD";       // soft green
+const BG = "#F4F6F8";
 const W = "#FFFFFF";
-const BD = "#E4E4ED";
-const MU = "#8A8FA8";
-const TX = "#1B1F3B";
-const GOLD = "#F59E0B";
+const BD = "#E2E6EA";
+const MU = "#8A9BB0";
+const TX = "#1A2640";
+const O = "#B59A7A";       // was orange, nu copper (voor backwards compat)
+const GOLD = "#B59A7A";
 
 // ─── DATA ─────────────────────────────────────────────────────────────────────
 const TASKS = [
-  { id:"cv",        icon:"🔥", label:"CV-ketel",        sub:"plaatsen / verplaatsen" },
-  { id:"stuc",      icon:"🪣", label:"Stucen",          sub:"wanden & plafonds" },
-  { id:"badkamer",  icon:"🚿", label:"Badkamer",        sub:"renovatie & toilet" },
-  { id:"dak",       icon:"🏠", label:"Dakkapel",        sub:"plaatsen & renoveren" },
-  { id:"elektra",   icon:"⚡", label:"Elektra",         sub:"groepenkast & bedrading" },
-  { id:"vloer",     icon:"🪵", label:"Vloer",           sub:"leggen & schuren" },
-  { id:"schilder",  icon:"✏️", label:"Schilderwerk",    sub:"binnen & buiten" },
-  { id:"tuin",      icon:"🌿", label:"Tuin",            sub:"aanleg & bestrating" },
-  { id:"keuken",    icon:"🍳", label:"Keuken",          sub:"plaatsen & verbouwen" },
-  { id:"isolatie",  icon:"🧱", label:"Isolatie",        sub:"spouw & vloer" },
-  { id:"kozijnen",  icon:"🪟", label:"Kozijnen",        sub:"HR++ & draaikiepramen" },
-  { id:"verwarming",icon:"♨️", label:"Vloerverwarming", sub:"aanleg & onderhoud" },
-  { id:"diversen",  icon:"🔩", label:"Diversen",        sub:"overige klussen" },
+  { id:"cv",        Icon: Flame,         label:"CV-ketel",        sub:"plaatsen / verplaatsen" },
+  { id:"stuc",      Icon: Shovel,        label:"Stucen",          sub:"wanden & plafonds" },
+  { id:"badkamer",  Icon: Bathtub,       label:"Badkamer",        sub:"renovatie & toilet" },
+  { id:"dak",       Icon: House,         label:"Dakkapel",        sub:"plaatsen & renoveren" },
+  { id:"elektra",   Icon: Lightning,     label:"Elektra",         sub:"groepenkast & bedrading" },
+  { id:"vloer",     Icon: TreeEvergreen, label:"Vloer",           sub:"leggen & schuren" },
+  { id:"schilder",  Icon: PaintRoller,   label:"Schilderwerk",    sub:"binnen & buiten" },
+  { id:"tuin",      Icon: Flower,        label:"Tuin",            sub:"aanleg & bestrating" },
+  { id:"keuken",    Icon: CookingPot,    label:"Keuken",          sub:"plaatsen & verbouwen" },
+  { id:"isolatie",  Icon: Wall,          label:"Isolatie",        sub:"spouw & vloer" },
+  { id:"kozijnen",  Icon: FrameCorners,  label:"Kozijnen",        sub:"HR++ & draaikiepramen" },
+  { id:"verwarming",Icon: Thermometer,   label:"Vloerverwarming", sub:"aanleg & onderhoud" },
+  { id:"diversen",  Icon: Wrench,        label:"Diversen",        sub:"overige klussen" },
 ];
 
 const TASK_Q = {
@@ -83,8 +85,8 @@ const Pill = ({ color, bg, children, small }) => (
   </span>
 );
 const Card = ({ children, style, onClick }) => (
-  <div onClick={onClick} style={{ background:W, borderRadius:16, padding:16,
-    border:`1px solid ${BD}`, boxShadow:"0 1px 6px rgba(0,0,0,0.05)",
+  <div onClick={onClick} style={{ background:W, borderRadius:10, padding:16,
+    border:`1px solid ${BD}`, boxShadow:"0 1px 4px rgba(10,17,40,0.06)",
     marginBottom:12, cursor:onClick?"pointer":"default", ...style }}>
     {children}
   </div>
@@ -92,26 +94,36 @@ const Card = ({ children, style, onClick }) => (
 const Lbl = ({ children }) => (
   <div style={{ fontSize:11, fontWeight:700, color:MU, textTransform:"uppercase", letterSpacing:1, marginBottom:10 }}>{children}</div>
 );
-const OBtn = ({ label, onClick, disabled, full, outline, danger, small }) => (
-  <button onClick={disabled?undefined:onClick} style={{
-    width:full?"100%":undefined,
-    background:outline||danger?"transparent":disabled?"#E5E7EB":`linear-gradient(135deg,${O},#EA580C)`,
-    color:danger?"#EF4444":outline?N:disabled?MU:W,
-    border:outline?`2px solid ${N}`:danger?`2px solid #EF4444`:"none",
-    borderRadius:50, padding:small?"9px 18px":"13px 24px",
-    fontSize:small?12:14, fontWeight:700,
-    cursor:disabled?"not-allowed":"pointer",
-    boxShadow:outline||disabled||danger?"none":`0 4px 14px rgba(249,115,22,0.4)`,
-    transition:"all 0.15s", whiteSpace:"nowrap",
+const OBtn = ({ label, onClick, full, outline, disabled, style }) => (
+  <button onClick={onClick} disabled={disabled} style={{
+    width: full ? "100%" : "auto",
+    padding: "11px 22px",
+    background: outline ? "transparent" : "transparent",
+    color: CU,
+    border: `1.5px solid ${CU}`,
+    borderRadius: 8,
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: disabled ? "not-allowed" : "pointer",
+    opacity: disabled ? 0.45 : 1,
+    letterSpacing: 0.3,
+    fontFamily: "'Inter', sans-serif",
+    transition: "all 0.15s",
+    ...(style || {})
   }}>{label}</button>
 );
 const BackBtn = ({ onPress, light }) => (
   <button onClick={onPress} style={{
-    background: light ? "rgba(255,255,255,0.15)" : "rgba(27,31,59,0.08)",
-    border: light ? "1px solid rgba(255,255,255,0.25)" : `1px solid ${BD}`,
-    color: light ? W : N, fontSize:13, fontWeight:700, cursor:"pointer",
-    padding:"7px 14px", borderRadius:20,
-    display:"inline-flex", alignItems:"center", gap:6 }}>‹ Terug</button>
+    background: "transparent",
+    border: `1px solid ${light ? "rgba(255,255,255,0.3)" : BD}`,
+    color: light ? "rgba(255,255,255,0.85)" : TX,
+    fontSize: 13, fontWeight: 500, cursor: "pointer",
+    padding: "6px 14px", borderRadius: 20,
+    display: "inline-flex", alignItems: "center", gap: 6,
+    fontFamily: "'Inter', sans-serif",
+  }}>
+    <ArrowLeft size={14} weight="light"/> Terug
+  </button>
 );
 const Av = ({ label, color, size=44, src }) => {
   const [imgErr, setImgErr] = useState(false);
@@ -153,7 +165,7 @@ const BottomBar = ({ children }) => (
 );
 const Phone = ({ children }) => (
   <div style={{ width:390, minHeight:"100vh", margin:"0 auto", background:BG,
-    fontFamily:"'DM Sans','Segoe UI',sans-serif",
+    fontFamily:"'Inter', sans-serif",
     boxShadow:"0 0 60px rgba(0,0,0,0.15), 0 0 0 1px #ddd",
     display:"flex", flexDirection:"column", overflow:"hidden" }}>
     {children}
@@ -359,20 +371,20 @@ const [role, setRole]   = useState(null);
   // ── HOME ──────────────────────────────────────────────────────────────────
   const HomeScreen = () => (
     <div style={{ overflowY:"auto", flex:1 }}>
-      <div style={{ background:"linear-gradient(150deg,#0f0c29,#1B1F3B,#2d2850)", padding:"32px 20px 36px", position:"relative", overflow:"hidden" }}>
-        <div style={{ position:"absolute", top:-80, right:-80, width:240, height:240, background:"rgba(249,115,22,0.1)", borderRadius:"50%", pointerEvents:"none" }}/>
-        <div style={{ fontSize:11, color:"#FED7AA", letterSpacing:3, textTransform:"uppercase", marginBottom:10 }}>🇳🇱 100% Nederlands platform</div>
-        <h1 style={{ fontFamily:"Georgia,serif", fontSize:28, fontWeight:900, color:W, lineHeight:1.2, margin:"0 0 12px" }}>
+      <div style={{ background:N, padding:"32px 20px 36px", position:"relative", overflow:"hidden" }}>
+        <div style={{ position:"absolute", top:-80, right:-80, width:240, height:240, background:"rgba(181,154,122,0.08)", borderRadius:"50%", pointerEvents:"none" }}/>
+        <div style={{ fontSize:11, color:"rgba(181,154,122,0.7)", letterSpacing:3, textTransform:"uppercase", marginBottom:10 }}>🇳🇱 100% Nederlands platform</div>
+        <h1 style={{ fontFamily:"'Playfair Display', Georgia, serif", fontSize:28, fontWeight:700, color:CU, lineHeight:1.2, margin:"0 0 12px" }}>
           Taskly.<br/>Vind jouw vakman.<br/>Zonder gedoe.
         </h1>
         <p style={{ color:"rgba(255,255,255,0.6)", fontSize:13, lineHeight:1.7, marginBottom:22 }}>
           Geen €35 per lead. Betaal alleen bij succes.<br/>Jij bepaalt wie je inhuurt.
         </p>
         <div style={{ display:"flex", gap:10, flexWrap:"wrap" }}>
-          <button style={{ background:`linear-gradient(135deg,${O},#EA580C)`, color:W, border:"none", borderRadius:50, padding:"12px 22px", fontSize:14, fontWeight:700, cursor:"pointer", boxShadow:"0 4px 18px rgba(249,115,22,0.4)" }}
-            onClick={() => setTab("post")}>📋 Post een klus</button>
-          <button style={{ background:"rgba(255,255,255,0.12)", color:W, border:"1px solid rgba(255,255,255,0.25)", borderRadius:50, padding:"12px 22px", fontSize:14, fontWeight:700, cursor:"pointer" }}
-            onClick={() => setTab("search")}>🔍 Zoek vakman</button>
+          <button style={{ background:"transparent", color:CU, border:`1.5px solid ${CU}`, borderRadius:8, padding:"11px 22px", fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"'Inter', sans-serif", letterSpacing:0.3 }}
+            onClick={() => setTab("post")}>Post een klus</button>
+          <button style={{ background:"transparent", color:CU, border:`1.5px solid ${CU}`, borderRadius:8, padding:"11px 22px", fontSize:14, fontWeight:600, cursor:"pointer", fontFamily:"'Inter', sans-serif", letterSpacing:0.3 }}
+            onClick={() => setTab("search")}>Zoek vakman</button>
         </div>
       </div>
 
@@ -383,15 +395,17 @@ const [role, setRole]   = useState(null);
         </div>
         {openKlussen.map(k => {
           const taskLabel = TASKS.find(t => t.id === k.taken?.[0])?.label || k.taken?.[0] || "Klus";
-          const taskIcon  = TASKS.find(t => t.id === k.taken?.[0])?.icon || "🔨";
+          const TaskIconComp = TASKS.find(t => t.id === k.taken?.[0])?.Icon || Wrench;
           const timing = { spoed:"⚡ Spoed", "2weken":"Binnen 2 weken", maand:"Binnen een maand", flex:"Geen haast" }[k.timing] || "";
           return (
             <div key={k.id} onClick={() => { setOffSent(false); setOffBedrag(""); setOffBericht(""); go("klus-detail", k); }}
               style={{ background:W, borderRadius:16, marginBottom:10, padding:"14px 16px",
                 border:`1px solid ${BD}`, boxShadow:"0 2px 8px rgba(0,0,0,0.05)", cursor:"pointer" }}>
               <div style={{ display:"flex", gap:12, alignItems:"flex-start" }}>
-                <div style={{ width:44, height:44, borderRadius:12, background:"#EEF2FF",
-                  display:"flex", alignItems:"center", justifyContent:"center", fontSize:22, flexShrink:0 }}>{taskIcon}</div>
+                <div style={{ width:44, height:44, borderRadius:12, background:"#F4F6F8",
+                  display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                  <TaskIconComp size={22} weight="thin" color={CU}/>
+                </div>
                 <div style={{ flex:1, minWidth:0 }}>
                   <div style={{ fontWeight:700, fontSize:15, color:TX, marginBottom:2 }}>
                     {k.taken?.length > 1 ? `${taskLabel} +${k.taken.length-1}` : taskLabel}
@@ -404,7 +418,7 @@ const [role, setRole]   = useState(null);
                     {timing && <Pill small>{timing}</Pill>}
                     {k.taken?.slice(1).map(tid => {
                       const t = TASKS.find(t=>t.id===tid);
-                      return t ? <Pill key={tid} small>{t.icon} {t.label}</Pill> : null;
+                      return t ? <Pill key={tid} small>{t.label}</Pill> : null;
                     })}
                   </div>
                 </div>
@@ -495,12 +509,12 @@ const [role, setRole]   = useState(null);
         </div>
       )}
 
-      <div style={{ padding:"8px 16px 24px" }}>
-        <div style={{ fontFamily:"Georgia,serif", fontSize:16, fontWeight:700, color:TX, marginBottom:12 }}>Waarom Taskly?</div>
+      <div style={{ padding:"8px 16px 24px", textAlign:"center" }}>
+        <div style={{ fontFamily:"'Playfair Display', Georgia, serif", fontSize:16, fontWeight:700, color:TX, marginBottom:12 }}>Waarom Taskly?</div>
         {[["🎯","Betaal bij succes","Vakmensen betalen geen lead-kosten"],["💬","Chat direct","Ingebouwde chat na een match"],["📅","Gedeelde agenda","Plan afspraken samen in de app"],["🔍","KvK geverifieerd","Alleen echte professionals"],["🇳🇱","100% Nederlands","NL bedrijf, NL support"]].map(([ic,ti,de],i) => (
-          <div key={i} style={{ display:"flex", gap:12, alignItems:"flex-start", padding:"11px 0", borderTop:`1px solid ${BD}` }}>
-            <div style={{ fontSize:20, width:32, textAlign:"center", flexShrink:0 }}>{ic}</div>
-            <div><div style={{ fontWeight:700, fontSize:13, color:TX }}>{ti}</div><div style={{ fontSize:12, color:MU, marginTop:2 }}>{de}</div></div>
+          <div key={i} style={{ display:"flex", flexDirection:"column", alignItems:"center", padding:"11px 0", borderTop:`1px solid ${BD}` }}>
+            <div style={{ fontSize:20, marginBottom:4 }}>{ic}</div>
+            <div style={{ textAlign:"center" }}><div style={{ fontWeight:700, fontSize:13, color:TX }}>{ti}</div><div style={{ fontSize:12, color:MU, marginTop:2 }}>{de}</div></div>
           </div>
         ))}
       </div>
@@ -853,16 +867,17 @@ const [role, setRole]   = useState(null);
           <Lbl>Geplaatste klussen</Lbl>
           {pTasks.map(tid => {
             const tk = TASKS.find(t=>t.id===tid);
+            const TkIcon = tk?.Icon || Wrench;
             return (
               <div key={tid} style={{ display:"flex", gap:10, alignItems:"center", padding:"8px 0", borderTop:`1px solid ${BD}` }}>
-                <span style={{ fontSize:22 }}>{tk?.icon}</span>
+                <TkIcon size={22} weight="thin" color={CU}/>
                 <div style={{ fontWeight:600, fontSize:13, color:TX }}>{tk?.label}</div>
               </div>
             );
           })}
           {pPhoto && <div style={{ fontSize:12, color:G, marginTop:8 }}>📎 Foto bijgevoegd</div>}
         </Card>
-        <OBtn label="💬 Bekijk matches" full onClick={() => { setPPosted(false); setPStep(1); setPTasks([]); setPAns({}); setPDesc(""); setPPhoto(null); setPTiming(""); setTab("matches"); }}/>
+        <OBtn label="Bekijk matches" full onClick={() => { setPPosted(false); setPStep(1); setPTasks([]); setPAns({}); setPDesc(""); setPPhoto(null); setPTiming(""); setTab("matches"); }}/>
       </div>
     );
 
@@ -879,16 +894,16 @@ const [role, setRole]   = useState(null);
               const active = pTasks.includes(t.id);
               return (
                 <div key={t.id} onClick={() => setPTasks(prev => prev.includes(t.id) ? prev.filter(x=>x!==t.id) : [...prev, t.id])}
-                  style={{ background:active?"#EEF2FF":W, border:`2px solid ${active?N:BD}`,
+                  style={{ background:active?"#FDFAF7":W, border:`1.5px solid ${active?CU:BD}`,
                     borderRadius:16, padding:"18px 10px 14px", textAlign:"center",
                     cursor:"pointer", position:"relative", transition:"all 0.15s" }}>
                   <div style={{ position:"absolute", top:10, right:10, width:18, height:18, borderRadius:5,
-                    border:`2px solid ${active?N:"#D1D5DB"}`, background:active?N:"transparent",
+                    border:`1.5px solid ${active?CU:"#D1D5DB"}`, background:active?"transparent":"transparent",
                     display:"flex", alignItems:"center", justifyContent:"center" }}>
-                    {active && <svg width="11" height="11" viewBox="0 0 11 11"><path d="M2 5.5L4.5 8L9 3" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                    {active && <Check size={16} color={CU} weight="bold"/>}
                   </div>
-                  <div style={{ fontSize:30, marginBottom:7 }}>{t.icon}</div>
-                  <div style={{ fontWeight:700, fontSize:13, color:TX, lineHeight:1.3 }}>{t.label}</div>
+                  <t.Icon size={36} weight="thin" color={active ? CU : MU} />
+                  <div style={{ fontWeight:700, fontSize:13, color:TX, lineHeight:1.3, marginTop:7 }}>{t.label}</div>
                   <div style={{ fontSize:11, color:MU, marginTop:3 }}>{t.sub}</div>
                 </div>
               );
@@ -917,11 +932,12 @@ const [role, setRole]   = useState(null);
         <div style={{ overflowY:"auto", flex:1, padding:"4px 16px" }}>
           {pTasks.map(tid => {
             const tk = TASKS.find(t=>t.id===tid);
+            const TkIcon2 = tk?.Icon || Wrench;
             const qs = TASK_Q[tid] || [];
             return (
               <Card key={tid}>
                 <div style={{ display:"flex", gap:10, alignItems:"center", marginBottom:12 }}>
-                  <span style={{ fontSize:24 }}>{tk?.icon}</span>
+                  <TkIcon2 size={24} weight="thin" color={CU}/>
                   <div style={{ fontWeight:700, fontSize:15, color:TX }}>{tk?.label}</div>
                 </div>
                 {qs.length > 0 ? qs.map((q, i) => (
@@ -1018,9 +1034,10 @@ const [role, setRole]   = useState(null);
             <Lbl>Geselecteerde klussen</Lbl>
             {pTasks.map(tid => {
               const tk = TASKS.find(t=>t.id===tid);
+              const TkIcon4 = tk?.Icon || Wrench;
               return (
                 <div key={tid} style={{ display:"flex", gap:10, alignItems:"center", padding:"8px 0", borderTop:`1px solid ${BD}` }}>
-                  <span style={{ fontSize:22 }}>{tk?.icon}</span>
+                  <TkIcon4 size={22} weight="thin" color={CU}/>
                   <div style={{ fontWeight:600, fontSize:14, color:TX }}>{tk?.label}</div>
                 </div>
               );
