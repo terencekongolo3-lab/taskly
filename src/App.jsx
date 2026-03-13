@@ -40,13 +40,6 @@ const TASK_Q = {
   tuin:     [{ id:"m2",label:"Tuinoppervlak (m²)",type:"number",ph:"bijv. 60"},{ id:"type",label:"Werkzaamheden",type:"select",opts:["Aanleg nieuw","Herinrichting","Bestrating","Onderhoud"]}],
 };
 
-const [pros, setPros] = useState([]);
-
-useEffect(() => {
-  supabase.from('vakmensen').select('*').then(({ data }) => {
-    if (data) setPros(data);
-  });
-}, []);
 const PLUS_JOBS = [
   { id:"p1", title:"Volledig dak leggen", location:"Kasteel Hoensbroek", budget:"€45.000 – €60.000", hamers:5, blur:true, img:"🏰", tags:["Groot project","Dakdekker","Spoedklus"] },
   { id:"p2", title:"Complete renovatie herenhuis", location:"Amsterdam Oud-Zuid", budget:"€80.000+", hamers:5, blur:true, img:"🏛️", tags:["Totaalrenovatie","Aannemer","Premium"] },
@@ -202,7 +195,14 @@ export default function App() {
     });
   }, []);
 
-  const [role, setRole]   = useState(null);
+  const [pros, setPros] = useState([]);
+
+useEffect(() => {
+supabase.from('vakmensen').select('*').then(({ data, error }) => {
+  console.log('data:', data, 'error:', error);
+  if (data) setPros(data);
+});}, []);
+const [role, setRole]   = useState(null);
   const [tab, setTab]     = useState("home");
   const [sub, setSub]     = useState(null);
   const [subD, setSubD]   = useState(null);
@@ -397,8 +397,7 @@ export default function App() {
   // ── SEARCH ────────────────────────────────────────────────────────────────
   const SearchScreen = () => {
     const filtered = pros.filter(p =>
-      p.distance <= radius &&
-      (!filterTask || p.tasks.includes(filterTask))
+      !filterTask || (p.specialisaties && p.specialisaties.includes(filterTask))
     );
     if (sub === "pro-detail") {
       const p = subD;
@@ -407,25 +406,25 @@ export default function App() {
           <div style={{ background:`linear-gradient(135deg,${N},#2d2850)`, padding:"14px 16px 22px" }}>
             <BackBtn light onPress={() => go(null)}/>
             <div style={{ display:"flex", gap:14, alignItems:"center", marginTop:12 }}>
-              <Av label={p.avatar} color={p.color} size={56}/>
+              <Av label={(p.naam||'??').slice(0,2).toUpperCase()} color="#3B82F6" size={56}/>
               <div>
-                <div style={{ fontFamily:"Georgia,serif", fontSize:20, fontWeight:700, color:W }}>{p.name}</div>
-                <div style={{ fontSize:12, color:"rgba(255,255,255,0.55)", marginTop:2 }}>📍 {p.city} · {p.distance} km</div>
-                <Stars r={p.rating}/>
+                <div style={{ fontFamily:"Georgia,serif", fontSize:20, fontWeight:700, color:W }}>{p.naam}</div>
+                <div style={{ fontSize:12, color:"rgba(255,255,255,0.55)", marginTop:2 }}>📍 {p.stad}</div>
+                <Stars r={p.rating||4.5}/>
               </div>
             </div>
             <div style={{ display:"flex", gap:7, marginTop:12, flexWrap:"wrap" }}>
               {p.verified ? <Pill color="#ECFDF5" bg="rgba(5,150,105,0.3)">🔍 KvK geverifieerd</Pill>
                 : <Pill color="#FEF3C7" bg="rgba(217,119,6,0.3)">⏳ Niet geverifieerd</Pill>}
-              <Pill color="#EEF2FF" bg="rgba(255,255,255,0.15)">{p.price} prijsklasse</Pill>
-              <Pill color="#EEF2FF" bg="rgba(255,255,255,0.15)"><Hamers n={p.hamers}/></Pill>
             </div>
           </div>
           <div style={{ padding:16 }}>
             <Card>
               <Lbl>Werkzaamheden</Lbl>
               <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-                {p.tasks.map(t => { const tk = TASKS.find(x=>x.id===t); return tk ? <span key={t} style={{ background:"#F3F4F6", borderRadius:20, padding:"4px 10px", fontSize:12, color:"#374151" }}>{tk.icon} {tk.label}</span> : null; })}
+                {(Array.isArray(p.specialisaties) ? p.specialisaties : (p.specialisaties||'').split(',')).map((t,i) => (
+                  <span key={i} style={{ background:"#F3F4F6", borderRadius:20, padding:"4px 10px", fontSize:12, color:"#374151" }}>{t.trim()}</span>
+                ))}
               </div>
             </Card>
             <Card>
@@ -478,21 +477,17 @@ export default function App() {
               style={{ background:W, borderRadius:18, padding:16, marginBottom:12,
                 border:`1px solid ${BD}`, cursor:"pointer", boxShadow:"0 2px 8px rgba(0,0,0,0.05)" }}>
               <div style={{ display:"flex", gap:12 }}>
-                <Av label={p.avatar} color={p.color}/>
+                <Av label={(p.naam||'??').slice(0,2).toUpperCase()} color="#3B82F6"/>
                 <div style={{ flex:1 }}>
-                  <div style={{ display:"flex", justifyContent:"space-between" }}>
-                    <div style={{ fontWeight:700, fontSize:15, color:TX }}>{p.name}</div>
-                    <span style={{ fontWeight:800, color:O }}>{p.price}</span>
-                  </div>
-                  <div style={{ fontSize:12, color:MU, marginTop:1 }}>📍 {p.city} · {p.distance} km</div>
-                  <Stars r={p.rating}/><span style={{ color:"#ccc", fontSize:11 }}> ({p.reviews})</span>
+                  <div style={{ fontWeight:700, fontSize:15, color:TX }}>{p.naam}</div>
+                  <div style={{ fontSize:12, color:MU, marginTop:1 }}>📍 {p.stad}</div>
+                  <Stars r={p.rating||4.5}/>
                   <div style={{ marginTop:5, display:"flex", gap:6, flexWrap:"wrap" }}>
                     {p.verified && <Pill color={N} bg="#EEF2FF" small>🔍 Geverifieerd</Pill>}
-                    <Pill color={MU} bg="#F3F4F6" small><Hamers n={p.hamers}/></Pill>
                   </div>
                 </div>
               </div>
-              <div style={{ marginTop:10, fontSize:12, color:p.available==="Deze week"?G:"#D97706" }}>● {p.available}</div>
+              <div style={{ marginTop:10, fontSize:12, color:p.beschikbaarheid==="Deze week"?G:"#D97706" }}>● {p.beschikbaarheid}</div>
             </div>
           ))}
           <div style={{ height:20 }}/>
