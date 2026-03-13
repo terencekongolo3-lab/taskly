@@ -223,12 +223,13 @@ export default function App() {
       .then(({ count }) => { if (count != null) setKlusCount(count); });
   }, [user]);
 
+const [role, setRole]   = useState(null);
+
   useEffect(() => {
     if (!user || role !== 'vakman') return;
     supabase.from('klussen').select('*, profiles(naam, stad)').eq('status', 'actief').order('created_at', { ascending: false }).limit(20)
       .then(({ data }) => { if (data) setOpenKlussen(data); });
   }, [user, role]);
-const [role, setRole]   = useState(null);
   const [tab, setTab]     = useState("home");
   const [sub, setSub]     = useState(null);
   const [subD, setSubD]   = useState(null);
