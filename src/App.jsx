@@ -106,9 +106,12 @@ const OBtn = ({ label, onClick, disabled, full, outline, danger, small }) => (
   }}>{label}</button>
 );
 const BackBtn = ({ onPress, light }) => (
-  <button onClick={onPress} style={{ background:"none", border:"none",
-    color:light?W:N, fontSize:13, fontWeight:700, cursor:"pointer", padding:"6px 0",
-    display:"flex", alignItems:"center", gap:4 }}>← Terug</button>
+  <button onClick={onPress} style={{
+    background: light ? "rgba(255,255,255,0.15)" : "rgba(27,31,59,0.08)",
+    border: light ? "1px solid rgba(255,255,255,0.25)" : `1px solid ${BD}`,
+    color: light ? W : N, fontSize:13, fontWeight:700, cursor:"pointer",
+    padding:"7px 14px", borderRadius:20,
+    display:"inline-flex", alignItems:"center", gap:6 }}>‹ Terug</button>
 );
 const Av = ({ label, color, size=44, src }) => {
   const [imgErr, setImgErr] = useState(false);
@@ -243,6 +246,8 @@ const [role, setRole]   = useState(null);
   const [locLoading, setLocLoad]  = useState(false);
   const [locError, setLocError]   = useState(null);
   const [manualStad, setManual]   = useState("");
+  const [stadSuggesties, setSuggesties] = useState([]);
+  const [showSuggesties, setShowSuggesties] = useState(false);
 
   const haversine = (lat1, lon1, lat2, lon2) => {
     const R = 6371;
@@ -274,16 +279,26 @@ const [role, setRole]   = useState(null);
     );
   };
 
-  // Geocode handmatig ingevoerde stad na 700ms stilstand
+  // Stad autocomplete + geocode
   useEffect(() => {
-    if (!manualStad.trim()) { setUserLat(null); setUserLon(null); return; }
+    if (!manualStad.trim()) {
+      setSuggesties([]); setShowSuggesties(false);
+      setUserLat(null); setUserLon(null);
+      return;
+    }
     const t = setTimeout(async () => {
       try {
-        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(manualStad + ', Nederland')}&format=json&limit=1`);
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(manualStad + ', Nederland')}&format=json&limit=5&addressdetails=1`);
         const data = await res.json();
+        const suggestions = data.map(r => ({
+          label: r.address?.city || r.address?.town || r.address?.village || r.display_name.split(',')[0],
+          lat: parseFloat(r.lat), lon: parseFloat(r.lon)
+        })).filter((s,i,a) => a.findIndex(x=>x.label===s.label)===i);
+        setSuggesties(suggestions);
+        setShowSuggesties(suggestions.length > 0);
         if (data[0]) { setUserLat(parseFloat(data[0].lat)); setUserLon(parseFloat(data[0].lon)); }
       } catch {}
-    }, 700);
+    }, 400);
     return () => clearTimeout(t);
   }, [manualStad]);
   
@@ -325,7 +340,16 @@ const [role, setRole]   = useState(null);
   const [hasPlusAcc, setPlus]   = useState(false);
   const [agendaItems, setAgenda]= useState([]);
   
-  const go = (s, d=null) => { setSub(s); setSubD(d); };
+  const go = (s, d=null) => {
+    if (s) window.history.pushState({ sub: s }, '');
+    setSub(s); setSubD(d);
+  };
+
+  useEffect(() => {
+    const onPop = () => { setSub(null); setSubD(null); };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
   if (!user) return <Auth onLogin={(u, p) => { setUser(u); setProfiel(p); setRole(p?.rol ?? null); }} />;
 
   const unreadMatches = matches.filter(m => m.status === "chatting" && !m.myConfirm).length;
@@ -690,35 +714,50 @@ const [role, setRole]   = useState(null);
         <div style={{ background:N, padding:"14px 16px 16px" }}>
           <div style={{ fontFamily:"Georgia,serif", fontSize:17, fontWeight:700, color:W, marginBottom:12 }}>Zoek een vakman</div>
 
-          {/* Locatie */}
-          {!userStad && !manualStad && (
-            <button onClick={detectLocation} disabled={locLoading}
-              style={{ width:"100%", background:"rgba(249,115,22,0.9)", color:W, border:"none",
-                borderRadius:10, padding:"11px 14px", fontSize:13, fontWeight:700,
-                cursor:locLoading?"not-allowed":"pointer", marginBottom:10, textAlign:"left" }}>
-              {locLoading ? "📍 Locatie bepalen..." : "📍 Gebruik mijn locatie (automatisch)"}
-            </button>
-          )}
+          {/* Locatie zoekbalk */}
+          <div style={{ position:"relative", marginBottom:10 }}>
+            <div style={{ display:"flex", alignItems:"center", background:"rgba(255,255,255,0.12)",
+              border:"1px solid rgba(255,255,255,0.2)", borderRadius:12, overflow:"visible" }}>
+              <span style={{ padding:"0 10px 0 14px", fontSize:16 }}>📍</span>
+              <input
+                value={userStad || manualStad}
+                onChange={e => { setUserStad(null); setUserLat(null); setUserLon(null); setManual(e.target.value); setShowSuggesties(true); }}
+                onFocus={() => { if (stadSuggesties.length) setShowSuggesties(true); }}
+                placeholder="Stad of postcode..."
+                style={{ flex:1, padding:"11px 8px", background:"none", border:"none",
+                  color:W, fontSize:14, outline:"none", minWidth:0 }}/>
+              {(userStad || manualStad) && (
+                <button onClick={() => { setUserLat(null); setUserLon(null); setUserStad(null); setManual(""); setSuggesties([]); }}
+                  style={{ background:"none", border:"none", color:"rgba(255,255,255,0.5)", fontSize:18,
+                    cursor:"pointer", padding:"0 12px", lineHeight:1 }}>×</button>
+              )}
+            </div>
+            {/* Dropdown suggesties */}
+            {showSuggesties && stadSuggesties.length > 0 && (
+              <div style={{ position:"absolute", top:"calc(100% + 4px)", left:0, right:0, zIndex:100,
+                background:W, borderRadius:12, boxShadow:"0 8px 24px rgba(0,0,0,0.15)",
+                border:`1px solid ${BD}`, overflow:"hidden" }}>
+                <div onClick={() => { detectLocation(); setShowSuggesties(false); setManual(""); }}
+                  style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 14px",
+                    cursor:"pointer", borderBottom:`1px solid ${BD}`, background:"#FFF7ED" }}>
+                  <span style={{ fontSize:16 }}>🎯</span>
+                  <span style={{ fontSize:13, fontWeight:700, color:O }}>Gebruik mijn huidige locatie</span>
+                </div>
+                {stadSuggesties.map((s, i) => (
+                  <div key={i} onClick={() => { setManual(s.label); setUserLat(s.lat); setUserLon(s.lon); setShowSuggesties(false); }}
+                    style={{ display:"flex", alignItems:"center", gap:10, padding:"11px 14px",
+                      cursor:"pointer", borderBottom: i < stadSuggesties.length-1 ? `1px solid ${BD}` : "none" }}
+                    onMouseEnter={e => e.currentTarget.style.background="#F9FAFB"}
+                    onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                    <span style={{ fontSize:14, color:MU }}>📍</span>
+                    <span style={{ fontSize:14, color:TX }}>{s.label}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
           {locError && <div style={{ fontSize:12, color:"#FCA5A5", marginBottom:6 }}>{locError}</div>}
-          {!userStad && (
-            <div style={{ position:"relative", marginBottom:10 }}>
-              <input value={manualStad} onChange={e => setManual(e.target.value)}
-                placeholder="Of typ je stad / postcode..."
-                style={{ width:"100%", padding:"10px 14px", borderRadius:10,
-                  border:"1px solid rgba(255,255,255,0.2)", background:"rgba(255,255,255,0.1)",
-                  color:W, fontSize:13, outline:"none", boxSizing:"border-box" }}/>
-            </div>
-          )}
-          {userStad && (
-            <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between",
-              background:"rgba(5,150,105,0.25)", borderRadius:10, padding:"9px 14px", marginBottom:10 }}>
-              <span style={{ fontSize:13, color:"#A7F3D0", fontWeight:600 }}>📍 {userStad}</span>
-              <button onClick={() => { setUserLat(null); setUserLon(null); setUserStad(null); setManual(""); }}
-                style={{ background:"none", border:"none", color:"rgba(255,255,255,0.5)", fontSize:12, cursor:"pointer" }}>
-                Wijzigen
-              </button>
-            </div>
-          )}
+          {locLoading && <div style={{ fontSize:12, color:"rgba(255,255,255,0.6)", marginBottom:6 }}>📍 Locatie bepalen...</div>}
 
           <div style={{ display:"flex", justifyContent:"space-between", fontSize:12, color:"rgba(255,255,255,0.6)", marginBottom:4 }}>
             <span>📍 Zoekgebied</span><span style={{ fontWeight:700, color:O }}>{radius} km</span>
@@ -1334,7 +1373,7 @@ const [role, setRole]   = useState(null);
   const renderTab = () => {
     switch(tab) {
       case "home":    return <HomeScreen/>;
-      case "search":  return <SearchScreen/>;
+      case "search":  return SearchScreen();
       case "post":    return <PostScreen/>;
       case "matches": return <MatchesScreen/>;
       case "profiel": return <ProfielScreen/>;
