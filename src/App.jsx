@@ -40,17 +40,13 @@ const TASK_Q = {
   tuin:     [{ id:"m2",label:"Tuinoppervlak (m²)",type:"number",ph:"bijv. 60"},{ id:"type",label:"Werkzaamheden",type:"select",opts:["Aanleg nieuw","Herinrichting","Bestrating","Onderhoud"]}],
 };
 
-const PROS = [
-  { id:1, name:"De Jong Installaties", rating:4.9, reviews:87,  tasks:["cv","elektra","verwarming"], distance:3.2,  city:"Pijnacker",  price:"€€",  avatar:"DJ", color:"#F97316", verified:true,  available:"Deze week",     hamers:2 },
-  { id:2, name:"Stukadoors Maas",      rating:4.7, reviews:134, tasks:["stuc","schilder"],           distance:7.1,  city:"Delft",      price:"€€",  avatar:"SM", color:"#3B82F6", verified:true,  available:"Volgende week", hamers:2 },
-  { id:3, name:"Sanitair & Zo",        rating:4.8, reviews:62,  tasks:["badkamer","cv"],             distance:11.4, city:"Zoetermeer", price:"€€€", avatar:"SZ", color:"#10B981", verified:false, available:"Over 2 weken",  hamers:3 },
-  { id:4, name:"Van der Berg Bouw",    rating:4.6, reviews:211, tasks:["dak","kozijnen","isolatie"],  distance:5.2,  city:"Delft",      price:"€€",  avatar:"VB", color:"#8B5CF6", verified:true,  available:"Volgende week", hamers:2 },
-  { id:5, name:"Groen & Grond",        rating:4.5, reviews:43,  tasks:["tuin","vloer"],              distance:6.0,  city:"Nootdorp",   price:"€",   avatar:"GG", color:"#22C55E", verified:false, available:"Deze week",     hamers:1 },
-  { id:6, name:"Parket Pieters",       rating:4.6, reviews:143, tasks:["vloer","keuken"],            distance:11.2, city:"Leidschendam",price:"€€", avatar:"PP", color:"#EC4899", verified:true,  available:"Volgende week", hamers:2 },
-  { id:7, name:"CV Vakman Smit",       rating:4.5, reviews:67,  tasks:["cv","verwarming"],           distance:13.1, city:"Delft",      price:"€",   avatar:"CS", color:"#A78BFA", verified:false, available:"Over 2 weken",  hamers:1 },
-  { id:8, name:"AllRound Klusbedrijf", rating:4.7, reviews:96,  tasks:["diversen","schilder","tuin"],distance:8.4,  city:"Zoetermeer", price:"€€",  avatar:"AK", color:"#14B8A6", verified:true,  available:"Volgende week", hamers:2 },
-];
+const [pros, setPros] = useState([]);
 
+useEffect(() => {
+  supabase.from('vakmensen').select('*').then(({ data }) => {
+    if (data) setPros(data);
+  });
+}, []);
 const PLUS_JOBS = [
   { id:"p1", title:"Volledig dak leggen", location:"Kasteel Hoensbroek", budget:"€45.000 – €60.000", hamers:5, blur:true, img:"🏰", tags:["Groot project","Dakdekker","Spoedklus"] },
   { id:"p2", title:"Complete renovatie herenhuis", location:"Amsterdam Oud-Zuid", budget:"€80.000+", hamers:5, blur:true, img:"🏛️", tags:["Totaalrenovatie","Aannemer","Premium"] },
