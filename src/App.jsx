@@ -396,7 +396,7 @@ export default function App() {
 
   // ── SEARCH ────────────────────────────────────────────────────────────────
   const SearchScreen = () => {
-    const filtered = PROS.filter(p =>
+    const filtered = pros.filter(p =>
       p.distance <= radius &&
       (!filterTask || p.tasks.includes(filterTask))
     );
