@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { supabase } from "./supabase";
 import Auth from "./Auth";
-import { Flame, Shovel, Bathtub, House, Lightning, TreeEvergreen, PaintRoller, Flower, CookingPot, Wall, FrameCorners, Thermometer, Wrench, ArrowLeft, ArrowRight, MagnifyingGlass, ClipboardText, ChatCircle, User, CheckCircle, Star, MapPin, X, Check } from "@phosphor-icons/react";
+import { Flame, Bathtub, House, Lightning, PaintRoller, Flower, CookingPot, Wall, Thermometer, Wrench, ArrowLeft, Check } from "@phosphor-icons/react";
 // ─── THEME ────────────────────────────────────────────────────────────────────
 const N = "#0A1128";       // deep blue
 const CU = "#B59A7A";      // copper/gold accent
@@ -17,16 +17,16 @@ const GOLD = "#B59A7A";
 // ─── DATA ─────────────────────────────────────────────────────────────────────
 const TASKS = [
   { id:"cv",        Icon: Flame,         label:"CV-ketel",        sub:"plaatsen / verplaatsen" },
-  { id:"stuc",      Icon: Shovel,        label:"Stucen",          sub:"wanden & plafonds" },
+  { id:"stuc",      Icon: Wrench,        label:"Stucen",          sub:"wanden & plafonds" },
   { id:"badkamer",  Icon: Bathtub,       label:"Badkamer",        sub:"renovatie & toilet" },
   { id:"dak",       Icon: House,         label:"Dakkapel",        sub:"plaatsen & renoveren" },
   { id:"elektra",   Icon: Lightning,     label:"Elektra",         sub:"groepenkast & bedrading" },
-  { id:"vloer",     Icon: TreeEvergreen, label:"Vloer",           sub:"leggen & schuren" },
+  { id:"vloer",     Icon: Flower, label:"Vloer",           sub:"leggen & schuren" },
   { id:"schilder",  Icon: PaintRoller,   label:"Schilderwerk",    sub:"binnen & buiten" },
   { id:"tuin",      Icon: Flower,        label:"Tuin",            sub:"aanleg & bestrating" },
   { id:"keuken",    Icon: CookingPot,    label:"Keuken",          sub:"plaatsen & verbouwen" },
   { id:"isolatie",  Icon: Wall,          label:"Isolatie",        sub:"spouw & vloer" },
-  { id:"kozijnen",  Icon: FrameCorners,  label:"Kozijnen",        sub:"HR++ & draaikiepramen" },
+  { id:"kozijnen",  Icon: Wall,  label:"Kozijnen",        sub:"HR++ & draaikiepramen" },
   { id:"verwarming",Icon: Thermometer,   label:"Vloerverwarming", sub:"aanleg & onderhoud" },
   { id:"diversen",  Icon: Wrench,        label:"Diversen",        sub:"overige klussen" },
 ];
