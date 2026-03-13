@@ -312,6 +312,7 @@ const [role, setRole]   = useState(null);
   }, [manualStad]);
   
   const [pStep, setPStep]     = useState(1);
+  const [fromVakman, setFromVakman] = useState(null); // vakman waarvandaan we kwamen
   const [pTasks, setPTasks]   = useState([]);
   const [pAnswers, setPAns]   = useState({});
   const [pDesc, setPDesc]     = useState("");
@@ -339,6 +340,7 @@ const [role, setRole]   = useState(null);
     setPPosting(false);
     if (error) { alert('Fout bij opslaan: ' + error.message); return; }
     setKlusCount(c => c + 1);
+    setFromVakman(null);
     setPPosted(true);
   };
 
@@ -699,6 +701,7 @@ const [role, setRole]   = useState(null);
               <OBtn label="Offerte aanvragen" full onClick={() => {
                 const taskId = TASKS.find(t => t.label === p.specialisaties?.[0])?.id;
                 if(taskId) setPTasks([taskId]); else setPTasks([]);
+                setFromVakman(p);
                 setPStep(2); setTab("post"); go(null);
               }}/>
             </Card>
@@ -903,7 +906,10 @@ const [role, setRole]   = useState(null);
     if (pStep === 2) return (
       <div style={{ display:"flex", flexDirection:"column", flex:1 }}>
         <div style={{ padding:"16px 16px 4px" }}>
-          <BackBtn onPress={() => setPStep(1)}/>
+          <BackBtn onPress={() => {
+            if (fromVakman) { setFromVakman(null); setTab("search"); go("pro-detail", fromVakman); }
+            else setPStep(1);
+          }}/>
           <ProgressBar step={2} total={TOTAL}/>
           <div style={{ fontFamily:"Georgia,serif", fontSize:20, fontWeight:700, color:TX, marginBottom:4 }}>Specificaties</div>
           <div style={{ fontSize:13, color:MU, marginBottom:12 }}>Vul per klus de details in</div>
