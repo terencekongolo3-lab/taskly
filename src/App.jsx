@@ -162,10 +162,11 @@ const BottomBar = ({ children }) => (
   </div>
 );
 const Phone = ({ children }) => (
-  <div style={{ width:390, minHeight:"100vh", margin:"0 auto", background:BG,
+  <div style={{ width:"min(390px, 100vw)", minHeight:"100vh", minHeight:"100dvh", margin:"0 auto", background:BG,
     fontFamily:"'Inter', sans-serif",
     boxShadow:"0 0 60px rgba(0,0,0,0.15), 0 0 0 1px #ddd",
-    display:"flex", flexDirection:"column", overflow:"hidden" }}>
+    display:"flex", flexDirection:"column", overflow:"hidden",
+    WebkitOverflowScrolling:"touch" }}>
     {children}
   </div>
 );
@@ -180,10 +181,11 @@ function TabBar({ active, onChange, matchBadge }) {
     { id:"profiel", icon:"👤", label:"Profiel" },
   ];
   return (
-    <div style={{ display:"flex", background:W, borderTop:`1px solid ${BD}`, position:"sticky", bottom:0, zIndex:30 }}>
+    <div style={{ display:"flex", background:W, borderTop:`1px solid ${BD}`, position:"sticky", bottom:0, zIndex:30,
+      paddingBottom:"env(safe-area-inset-bottom, 0px)" }}>
       {tabs.map(t => (
         <button key={t.id} onClick={() => onChange(t.id)} style={{
-          flex:1, padding:"10px 4px 12px", background:"none", border:"none",
+          flex:1, padding:"10px 4px 10px", background:"none", border:"none",
           display:"flex", flexDirection:"column", alignItems:"center", gap:3,
           cursor:"pointer", position:"relative" }}>
           <span style={{ fontSize:21 }}>{t.icon}</span>
@@ -428,6 +430,23 @@ const [role, setRole]   = useState(null);
   const [agendaItems, setAgenda]= useState([]);
   
   const go = (s, d=null) => { setSub(s); setSubD(d); };
+
+  // ── IPHONE BACK BUTTON: voorkom dat de browser de webapp verlaat ──────────
+  const appStateRef = useRef({ sub: null, tab: "home", pStep: 1 });
+  useEffect(() => { appStateRef.current = { sub, tab, pStep }; }, [sub, tab, pStep]);
+  useEffect(() => {
+    window.history.pushState(null, '', window.location.href);
+    const handle = () => {
+      window.history.pushState(null, '', window.location.href);
+      const { sub: s, tab: t, pStep: ps } = appStateRef.current;
+      if (s) { setSub(null); setSubD(null); }
+      else if (t === 'post' && ps > 1) { setPStep(p => Math.max(1, p - 1)); }
+      else if (t !== 'home') { setTab('home'); setSub(null); setSubD(null); }
+    };
+    window.addEventListener('popstate', handle);
+    return () => window.removeEventListener('popstate', handle);
+  }, []);
+
   if (!user) return <Auth onLogin={(u, p) => { setUser(u); setProfiel(p); setRole(p?.rol ?? null); }} />;
 
   const unreadMatches = matches.filter(m => m.status === "chatting" && !m.myConfirm).length;
@@ -825,10 +844,17 @@ const [role, setRole]   = useState(null);
                 Vrijblijvend. <strong style={{color:G}}>Betaal alleen als je inhuurt.</strong>
               </div>
               <OBtn label="Offerte aanvragen" full onClick={() => {
-                const taskId = TASKS.find(t => t.label === p.specialisaties?.[0])?.id;
-                if(taskId) setPTasks([taskId]); else setPTasks([]);
+                const specs = Array.isArray(p.specialisaties)
+                  ? p.specialisaties
+                  : (p.specialisaties || '').split(',').map(s => s.trim());
+                const taskId = TASKS.find(t => specs.includes(t.label))?.id;
+                setPPosted(false);
+                setPAns({}); setPDesc(""); setPPhoto(null); setPPhotoFile(null); setPTiming("");
+                if (taskId) setPTasks([taskId]); else setPTasks([]);
                 setFromVakman(p);
-                setPStep(2); setTab("post"); go(null);
+                setPStep(taskId ? 2 : 1);
+                setTab("post");
+                go(null);
               }}/>
             </Card>
             <Card style={{ background:"#F9FAFB" }}>
