@@ -48,25 +48,23 @@ const PLUS_JOBS = [
   { id:"p3", title:"Nieuwbouw aanbouw 60m²", location:"Utrecht Leidsche Rijn", budget:"€35.000 – €50.000", hamers:4, blur:true, img:"🏗️", tags:["Nieuwbouw","Aanbouw","Vergunning"] },
 ];
 
-const INIT_MATCHES = [
-  { id:"m1", proId:2, proName:"Stukadoors Maas", proAvatar:"SM", proColor:"#3B82F6",
-    klus:"Stucen woonkamer 40m²", prijs:1840, status:"chatting",
-    myConfirm:false, proConfirm:false, afspraak:null,
-    msgs:[
-      { from:"pro",  text:"Goedemiddag! Ik heb je aanvraag bekeken. 40m² stucen, dat doe ik graag voor €1.840 all-in.", time:"14:32" },
-      { from:"klant",text:"Klinkt goed! Wanneer kunt u beginnen?", time:"14:35" },
-      { from:"pro",  text:"Ik kan volgende week al starten. Donderdag of vrijdag past u?", time:"14:37" },
-    ]
-  },
-];
+const INIT_MATCHES = [];
 
-const CAL_SLOTS = [
-  { date:"Ma 14 apr", slots:["09:00","13:00","16:00"] },
-  { date:"Di 15 apr", slots:["09:00","11:00"] },
-  { date:"Do 17 apr", slots:["08:00","10:00","14:00"] },
-  { date:"Vr 18 apr", slots:["09:00","12:00"] },
-  { date:"Ma 21 apr", slots:["09:00","13:00"] },
-];
+const genCalSlots = () => {
+  const slots = [];
+  const now = new Date();
+  const days = ['Zo','Ma','Di','Wo','Do','Vr','Za'];
+  const months = ['jan','feb','mrt','apr','mei','jun','jul','aug','sep','okt','nov','dec'];
+  for (let i = 1; i <= 21 && slots.length < 5; i++) {
+    const d = new Date(now);
+    d.setDate(now.getDate() + i);
+    if (d.getDay() === 0) continue;
+    const label = `${days[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`;
+    const daySlots = d.getDay() === 6 ? ["09:00","11:00"] : ["09:00","11:00","13:00","15:00"];
+    slots.push({ date: label, slots: daySlots });
+  }
+  return slots;
+};
 
 // ─── MICRO UI ──────────────────────────────────────────────────────────────────
 const Stars = ({ r, sm }) => (
@@ -328,7 +326,8 @@ const [role, setRole]   = useState(null);
   const [pTasks, setPTasks]   = useState([]);
   const [pAnswers, setPAns]   = useState({});
   const [pDesc, setPDesc]     = useState("");
-  const [pPhoto, setPPhoto]   = useState(null);
+  const [pPhoto, setPPhoto]   = useState(null);       // bestandsnaam voor display
+  const [pPhotoFile, setPPhotoFile] = useState(null); // echt File object voor upload
   const [pTiming, setPTiming] = useState("");
   const [pPosted, setPPosted] = useState(false);
   const [pPosting, setPPosting] = useState(false);
@@ -339,7 +338,17 @@ const [role, setRole]   = useState(null);
 
   const postKlus = async () => {
     setPPosting(true);
-    const { error } = await supabase.from('klussen').insert({
+    let fotoUrl = null;
+    if (pPhotoFile) {
+      const ext = pPhotoFile.name.split('.').pop();
+      const path = `klussen/${user.id}/${Date.now()}.${ext}`;
+      const { error: upErr } = await supabase.storage.from('fotos').upload(path, pPhotoFile, { upsert: true });
+      if (!upErr) {
+        const { data: urlData } = supabase.storage.from('fotos').getPublicUrl(path);
+        fotoUrl = urlData?.publicUrl || null;
+      }
+    }
+    const { data: newKlus, error } = await supabase.from('klussen').insert({
       user_id: user.id,
       taken: pTasks,
       antwoorden: pAnswers,
@@ -348,13 +357,66 @@ const [role, setRole]   = useState(null);
       stad: userStad || manualStad || null,
       lat: userLat || null,
       lon: userLon || null,
-    });
+      status: 'actief',
+      foto_url: fotoUrl,
+    }).select().single();
     setPPosting(false);
-    if (error) { alert('Fout bij opslaan: ' + error.message); return; }
+    if (error) { console.error('Fout bij opslaan:', error.message); return; }
     setKlusCount(c => c + 1);
+    if (newKlus) setKlantKlussen(prev => [newKlus, ...prev]);
     setFromVakman(null);
     setPPosted(true);
   };
+
+  const [klantKlussen, setKlantKlussen] = useState([]);
+  const [matchesLoading, setMatchesLoading] = useState(false);
+
+  // Laad klant klussen en offertes vanuit Supabase
+  useEffect(() => {
+    if (!user || role !== 'klant') return;
+    setMatchesLoading(true);
+    supabase.from('klussen')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+      .then(async ({ data: klussenData }) => {
+        if (!klussenData || klussenData.length === 0) {
+          setKlantKlussen([]);
+          setMatchesLoading(false);
+          return;
+        }
+        setKlantKlussen(klussenData);
+        const klusIds = klussenData.map(k => k.id);
+        const { data: offData } = await supabase.from('offertes')
+          .select('*, vakmensen(naam, foto_url, rating, stad)')
+          .in('klus_id', klusIds)
+          .order('created_at', { ascending: false });
+        if (offData) {
+          const realMatches = offData.map(off => {
+            const klus = klussenData.find(k => k.id === off.klus_id);
+            const klusLabel = klus?.taken?.map(t => TASKS.find(t2 => t2.id === t)?.label).filter(Boolean).join(', ') || 'Klus';
+            return {
+              id: `off_${off.id}`,
+              offId: off.id,
+              proId: off.vakman_id,
+              proName: off.vakmensen?.naam || 'Vakman',
+              proAvatar: (off.vakmensen?.naam || 'VA').slice(0, 2).toUpperCase(),
+              proColor: '#3B82F6',
+              proFoto: off.vakmensen?.foto_url,
+              klus: klusLabel,
+              prijs: off.bedrag || 0,
+              status: 'chatting',
+              myConfirm: off.klant_akkoord || false,
+              proConfirm: off.vakman_akkoord || false,
+              afspraak: off.afspraak || null,
+              msgs: off.bericht ? [{ from: 'pro', text: off.bericht, time: new Date(off.created_at).toLocaleTimeString('nl', { hour: '2-digit', minute: '2-digit' }) }] : [],
+            };
+          });
+          setMatches(realMatches);
+        }
+        setMatchesLoading(false);
+      });
+  }, [user, role]);
 
   const [matches, setMatches]   = useState(INIT_MATCHES);
   const [chatMsg, setChatMsg]   = useState("");
@@ -483,11 +545,62 @@ const [role, setRole]   = useState(null);
       </div>
       )}
 
-      {role === "klant" && (
+      {role === "klant" && klantKlussen.length > 0 && (
         <div style={{ margin:"16px 16px 4px" }}>
           <div style={{ fontFamily:"Georgia,serif", fontSize:16, fontWeight:700, color:TX, marginBottom:12 }}>
-            Twee manieren om te starten
+            📋 Mijn klussen
           </div>
+          {klantKlussen.slice(0, 3).map(k => {
+            const taskLabel = TASKS.find(t => t.id === k.taken?.[0])?.label || k.taken?.[0] || "Klus";
+            const TaskIconComp = TASKS.find(t => t.id === k.taken?.[0])?.Icon || Wrench;
+            const klusOffertes = matches.filter(m => {
+              const klusLabelForMatch = k.taken?.map(t => TASKS.find(t2 => t2.id === t)?.label).filter(Boolean).join(', ');
+              return m.klus === klusLabelForMatch || m.id === `off_${k.id}`;
+            });
+            const timing = { spoed:"⚡ Spoed", "2weken":"Binnen 2 weken", maand:"Binnen een maand", flex:"Geen haast" }[k.timing] || "";
+            return (
+              <div key={k.id} onClick={() => setTab("matches")}
+                style={{ background:W, borderRadius:16, marginBottom:10, padding:"14px 16px",
+                  border:`1px solid ${BD}`, boxShadow:"0 2px 8px rgba(0,0,0,0.05)", cursor:"pointer" }}>
+                <div style={{ display:"flex", gap:12, alignItems:"flex-start" }}>
+                  <div style={{ width:44, height:44, borderRadius:12, background:"#F4F6F8",
+                    display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>
+                    <TaskIconComp size={22} weight="thin" color={CU}/>
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontWeight:700, fontSize:15, color:TX, marginBottom:2 }}>
+                      {k.taken?.length > 1 ? `${taskLabel} +${k.taken.length-1}` : taskLabel}
+                    </div>
+                    <div style={{ fontSize:12, color:MU }}>📍 {k.stad || "Onbekend"}</div>
+                    {k.omschrijving && <div style={{ fontSize:12, color:MU, marginTop:4, lineHeight:1.5, overflow:"hidden", display:"-webkit-box", WebkitLineClamp:2, WebkitBoxOrient:"vertical" }}>{k.omschrijving}</div>}
+                    <div style={{ display:"flex", gap:6, marginTop:8, flexWrap:"wrap" }}>
+                      <Pill small color={G} bg="rgba(163,193,173,0.2)">✓ Actief</Pill>
+                      {timing && <Pill small>{timing}</Pill>}
+                      {klusOffertes.length > 0 && <Pill small color={CU} bg="rgba(181,154,122,0.15)">{klusOffertes.length} offerte{klusOffertes.length !== 1 ? 's' : ''}</Pill>}
+                    </div>
+                  </div>
+                  <span style={{ color:MU, fontSize:18, flexShrink:0 }}>›</span>
+                </div>
+              </div>
+            );
+          })}
+          {matches.length > 0 && (
+            <button onClick={() => setTab("matches")}
+              style={{ width:"100%", padding:"11px", background:"transparent", border:`1.5px solid ${CU}`,
+                borderRadius:10, color:CU, fontSize:13, fontWeight:700, cursor:"pointer", marginBottom:8 }}>
+              Bekijk {matches.length} offerte{matches.length !== 1 ? 's' : ''} →
+            </button>
+          )}
+        </div>
+      )}
+
+      {role === "klant" && (
+        <div style={{ margin:`${klantKlussen.length > 0 ? "4px" : "16px"} 16px 4px` }}>
+          {klantKlussen.length === 0 && (
+            <div style={{ fontFamily:"Georgia,serif", fontSize:16, fontWeight:700, color:TX, marginBottom:12 }}>
+              Twee manieren om te starten
+            </div>
+          )}
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12, marginBottom:8 }}>
             <div style={{ background:W, borderRadius:16, padding:16, border:`1px solid ${BD}`,
               cursor:"pointer", boxShadow:"0 1px 6px rgba(0,0,0,0.05)" }}
@@ -877,7 +990,7 @@ const [role, setRole]   = useState(null);
           })}
           {pPhoto && <div style={{ fontSize:12, color:G, marginTop:8 }}>📎 Foto bijgevoegd</div>}
         </Card>
-        <OBtn label="Bekijk matches" full onClick={() => { setPPosted(false); setPStep(1); setPTasks([]); setPAns({}); setPDesc(""); setPPhoto(null); setPTiming(""); setTab("matches"); }}/>
+        <OBtn label="Bekijk matches" full onClick={() => { setPPosted(false); setPStep(1); setPTasks([]); setPAns({}); setPDesc(""); setPPhoto(null); setPPhotoFile(null); setPTiming(""); setTab("matches"); }}/>
       </div>
     );
 
@@ -978,7 +1091,7 @@ const [role, setRole]   = useState(null);
           <Card>
             <Lbl>Foto toevoegen (optioneel)</Lbl>
             <input ref={fileRef} type="file" accept="image/*" style={{ display:"none" }}
-              onChange={e => { if(e.target.files[0]) setPPhoto(e.target.files[0].name); }}/>
+              onChange={e => { if(e.target.files[0]) { setPPhoto(e.target.files[0].name); setPPhotoFile(e.target.files[0]); } }}/>
             {!pPhoto ? (
               <div onClick={() => fileRef.current.click()}
                 style={{ border:`2px dashed ${BD}`, borderRadius:12, padding:"24px 16px",
@@ -995,7 +1108,7 @@ const [role, setRole]   = useState(null);
                   <div style={{ fontWeight:600, fontSize:13, color:G }}>Foto toegevoegd</div>
                   <div style={{ fontSize:12, color:MU, marginTop:1 }}>{pPhoto}</div>
                 </div>
-                <button onClick={() => setPPhoto(null)} style={{ background:"none", border:"none",
+                <button onClick={() => { setPPhoto(null); setPPhotoFile(null); }} style={{ background:"none", border:"none",
                   color:"#EF4444", fontSize:18, cursor:"pointer", padding:4 }}>✕</button>
               </div>
             )}
