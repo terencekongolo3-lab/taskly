@@ -162,7 +162,7 @@ const BottomBar = ({ children }) => (
   </div>
 );
 const Phone = ({ children }) => (
-  <div style={{ width:"min(390px, 100vw)", minHeight:"100vh", minHeight:"100dvh", margin:"0 auto", background:BG,
+  <div style={{ width:"min(390px, 100vw)", minHeight:"100dvh", margin:"0 auto", background:BG,
     fontFamily:"'Inter', sans-serif",
     boxShadow:"0 0 60px rgba(0,0,0,0.15), 0 0 0 1px #ddd",
     display:"flex", flexDirection:"column", overflow:"hidden",
@@ -1221,7 +1221,7 @@ const [role, setRole]   = useState(null);
           {(userStad || manualStad) && <Card><Lbl>Locatie</Lbl><div style={{ fontSize:14, fontWeight:600, color:TX }}>📍 {userStad || manualStad}</div></Card>}
           {pDesc && <Card><Lbl>Omschrijving</Lbl><div style={{ fontSize:13, color:MU, lineHeight:1.6 }}>{pDesc}</div></Card>}
           {pPhoto && <Card><Lbl>Foto</Lbl><div style={{ fontSize:13, color:G }}>📎 {pPhoto}</div></Card>}
-          {pTiming && <Card><Lbl>Timing</Lbl><div style={{ fontSize:14, fontWeight:600, color:TX }}>{{spoed:"Met spoed",["2weken"]:"Binnen 2 weken",maand:"Binnen een maand",flex:"Geen haast"}[pTiming]}</div></Card>}
+          {pTiming && <Card><Lbl>Timing</Lbl><div style={{ fontSize:14, fontWeight:600, color:TX }}>{ {spoed:"Met spoed","2weken":"Binnen 2 weken",maand:"Binnen een maand",flex:"Geen haast"}[pTiming] }</div></Card>}
           <div style={{ background:"#ECFDF5", border:"1px solid #A7F3D0", borderRadius:16, padding:16, marginBottom:16 }}>
             <div style={{ fontWeight:700, fontSize:14, color:"#065F46", marginBottom:6 }}>✅ Wat gebeurt er?</div>
             <div style={{ fontSize:13, color:"#047857", lineHeight:1.7 }}>• Vakmensen zien je klus<br/>• Ze sturen een offerte<br/>• Jij accepteert → chat start automatisch<br/>• Plan samen een afspraak in de app</div>
