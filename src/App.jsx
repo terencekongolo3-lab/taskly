@@ -392,16 +392,18 @@ const [role, setRole]   = useState(null);
           .in('klus_id', klusIds)
           .order('created_at', { ascending: false });
         if (offData) {
-          const realMatches = offData.map(off => {
+          const avatarKleuren = ['#3B82F6','#8B5CF6','#059669','#D97706','#DC2626','#0891B2'];
+          const realMatches = offData.map((off, idx) => {
             const klus = klussenData.find(k => k.id === off.klus_id);
             const klusLabel = klus?.taken?.map(t => TASKS.find(t2 => t2.id === t)?.label).filter(Boolean).join(', ') || 'Klus';
             return {
               id: `off_${off.id}`,
               offId: off.id,
+              klusId: off.klus_id,
               proId: off.vakman_id,
               proName: off.vakmensen?.naam || 'Vakman',
               proAvatar: (off.vakmensen?.naam || 'VA').slice(0, 2).toUpperCase(),
-              proColor: '#3B82F6',
+              proColor: avatarKleuren[idx % avatarKleuren.length],
               proFoto: off.vakmensen?.foto_url,
               klus: klusLabel,
               prijs: off.bedrag || 0,
@@ -553,10 +555,7 @@ const [role, setRole]   = useState(null);
           {klantKlussen.slice(0, 3).map(k => {
             const taskLabel = TASKS.find(t => t.id === k.taken?.[0])?.label || k.taken?.[0] || "Klus";
             const TaskIconComp = TASKS.find(t => t.id === k.taken?.[0])?.Icon || Wrench;
-            const klusOffertes = matches.filter(m => {
-              const klusLabelForMatch = k.taken?.map(t => TASKS.find(t2 => t2.id === t)?.label).filter(Boolean).join(', ');
-              return m.klus === klusLabelForMatch || m.id === `off_${k.id}`;
-            });
+            const klusOffertes = matches.filter(m => m.klusId === k.id);
             const timing = { spoed:"⚡ Spoed", "2weken":"Binnen 2 weken", maand:"Binnen een maand", flex:"Geen haast" }[k.timing] || "";
             return (
               <div key={k.id} onClick={() => setTab("matches")}
@@ -1081,6 +1080,43 @@ const [role, setRole]   = useState(null);
         </div>
         <div style={{ overflowY:"auto", flex:1, padding:"4px 16px" }}>
           <Card>
+            <Lbl>Locatie</Lbl>
+            <div style={{ position:"relative" }}>
+              <input
+                value={userStad || manualStad}
+                onChange={e => { setUserStad(null); setUserLat(null); setUserLon(null); setManual(e.target.value); setShowSuggesties(true); }}
+                placeholder="Jouw stad of postcode..."
+                style={{ width:"100%", padding:"11px 14px 11px 38px", borderRadius:10, border:`1px solid ${BD}`,
+                  fontSize:14, background:W, color:TX, outline:"none", boxSizing:"border-box" }}/>
+              <span style={{ position:"absolute", left:12, top:"50%", transform:"translateY(-50%)", fontSize:15 }}>📍</span>
+              {(userStad || manualStad) && (
+                <button onClick={() => { setUserLat(null); setUserLon(null); setUserStad(null); setManual(""); setSuggesties([]); }}
+                  style={{ position:"absolute", right:8, top:"50%", transform:"translateY(-50%)", background:"none", border:"none",
+                    color:MU, fontSize:16, cursor:"pointer", padding:4, lineHeight:1 }}>×</button>
+              )}
+            </div>
+            {showSuggesties && stadSuggesties.length > 0 && (
+              <div style={{ background:W, borderRadius:10, boxShadow:"0 4px 16px rgba(0,0,0,0.1)", border:`1px solid ${BD}`, marginTop:4, overflow:"hidden" }}>
+                {stadSuggesties.map((s, i) => (
+                  <div key={i} onClick={() => { setManual(s.label); setUserLat(s.lat); setUserLon(s.lon); setShowSuggesties(false); }}
+                    style={{ display:"flex", alignItems:"center", gap:10, padding:"10px 14px",
+                      cursor:"pointer", borderBottom: i < stadSuggesties.length-1 ? `1px solid ${BD}` : "none",
+                      fontSize:14, color:TX }}
+                    onMouseEnter={e => e.currentTarget.style.background="#F9FAFB"}
+                    onMouseLeave={e => e.currentTarget.style.background="transparent"}>
+                    <span style={{ color:MU }}>📍</span>{s.label}
+                  </div>
+                ))}
+              </div>
+            )}
+            {!userStad && !manualStad && (
+              <button onClick={detectLocation} style={{ marginTop:8, background:"none", border:`1px solid ${BD}`,
+                borderRadius:8, padding:"8px 14px", fontSize:12, color:MU, cursor:"pointer", display:"flex", alignItems:"center", gap:6 }}>
+                🎯 Gebruik mijn huidige locatie
+              </button>
+            )}
+          </Card>
+          <Card>
             <Lbl>Omschrijving (optioneel)</Lbl>
             <textarea value={pDesc} onChange={e => setPDesc(e.target.value)}
               placeholder="Beschrijf bijzonderheden, gewenst materiaal, toegankelijkheid…"
@@ -1156,6 +1192,7 @@ const [role, setRole]   = useState(null);
               );
             })}
           </Card>
+          {(userStad || manualStad) && <Card><Lbl>Locatie</Lbl><div style={{ fontSize:14, fontWeight:600, color:TX }}>📍 {userStad || manualStad}</div></Card>}
           {pDesc && <Card><Lbl>Omschrijving</Lbl><div style={{ fontSize:13, color:MU, lineHeight:1.6 }}>{pDesc}</div></Card>}
           {pPhoto && <Card><Lbl>Foto</Lbl><div style={{ fontSize:13, color:G }}>📎 {pPhoto}</div></Card>}
           {pTiming && <Card><Lbl>Timing</Lbl><div style={{ fontSize:14, fontWeight:600, color:TX }}>{{spoed:"Met spoed",["2weken"]:"Binnen 2 weken",maand:"Binnen een maand",flex:"Geen haast"}[pTiming]}</div></Card>}
@@ -1176,13 +1213,23 @@ const [role, setRole]   = useState(null);
     const match = matches.find(m => m.id === subD);
     if (!match) return null;
 
-    const sendMsg = () => {
+    const sendMsg = async () => {
       if (!chatMsg.trim()) return;
+      const tekst = chatMsg.trim();
+      const tijd = new Date().toLocaleTimeString("nl",{hour:"2-digit",minute:"2-digit"});
+      setChatMsg("");
       setMatches(prev => prev.map(m => m.id === match.id
-        ? { ...m, msgs: [...m.msgs, { from:"klant", text:chatMsg.trim(), time:new Date().toLocaleTimeString("nl",{hour:"2-digit",minute:"2-digit"}) }] }
+        ? { ...m, msgs: [...m.msgs, { from:"klant", text:tekst, time:tijd }] }
         : m
       ));
-      setChatMsg("");
+      if (match.offId) {
+        await supabase.from('berichten').insert({
+          offerte_id: match.offId,
+          afzender_id: user.id,
+          tekst,
+          rol: 'klant',
+        }).then(({ error }) => { if (error) console.warn('Bericht niet opgeslagen:', error.message); });
+      }
     };
 
     const proposeDate = (date, time) => {
@@ -1277,7 +1324,7 @@ const [role, setRole]   = useState(null);
           {calOpen && (
             <div style={{ background:W, borderRadius:16, padding:16, border:`2px solid ${N}`, marginBottom:12 }}>
               <div style={{ fontWeight:700, fontSize:14, color:TX, marginBottom:12 }}>📅 Kies een datum & tijd</div>
-              {CAL_SLOTS.map(day => (
+              {genCalSlots().map(day => (
                 <div key={day.date} style={{ marginBottom:12 }}>
                   <div style={{ fontSize:12, fontWeight:700, color:MU, marginBottom:6 }}>{day.date}</div>
                   <div style={{ display:"flex", gap:8, flexWrap:"wrap" }}>
@@ -1320,10 +1367,10 @@ const [role, setRole]   = useState(null);
               style={{ flex:1, padding:"11px 16px", borderRadius:50, border:`1px solid ${BD}`,
                 fontSize:13, background:"#F9FAFB", outline:"none" }}/>
             <button onClick={sendMsg}
-              style={{ width:42, height:42, borderRadius:"50%", background:`linear-gradient(135deg,${O},#EA580C)`,
+              style={{ width:42, height:42, borderRadius:"50%", background:N,
                 border:"none", color:W, fontSize:18, cursor:"pointer",
                 display:"flex", alignItems:"center", justifyContent:"center",
-                boxShadow:"0 2px 8px rgba(249,115,22,0.4)" }}>
+                boxShadow:"0 2px 8px rgba(10,17,40,0.3)" }}>
               ↑
             </button>
           </div>
@@ -1338,15 +1385,50 @@ const [role, setRole]   = useState(null);
     <div style={{ overflowY:"auto", flex:1 }}>
       <div style={{ background:N, padding:"14px 16px 16px" }}>
         <div style={{ fontFamily:"Georgia,serif", fontSize:17, fontWeight:700, color:W }}>Matches & Chat</div>
-        <div style={{ fontSize:12, color:"rgba(255,255,255,0.55)", marginTop:3 }}>Jouw actieve gesprekken met vakmensen</div>
+        <div style={{ fontSize:12, color:"rgba(255,255,255,0.55)", marginTop:3 }}>
+          {matches.length > 0 ? `${matches.length} offerte${matches.length !== 1 ? 's' : ''} ontvangen` : "Jouw actieve gesprekken met vakmensen"}
+        </div>
       </div>
       <div style={{ padding:"12px 16px" }}>
-        {matches.length === 0 ? (
+        {matchesLoading ? (
           <div style={{ textAlign:"center", padding:"48px 20px", color:MU }}>
-            <div style={{ fontSize:48, marginBottom:12 }}>💬</div>
-            <div style={{ fontWeight:700, fontSize:16, color:TX, marginBottom:6 }}>Nog geen matches</div>
-            <div style={{ fontSize:13 }}>Post een klus of neem contact op met een vakman.</div>
+            <div style={{ fontSize:36, marginBottom:12 }}>⏳</div>
+            <div style={{ fontSize:14, color:MU }}>Offertes laden...</div>
           </div>
+        ) : matches.length === 0 ? (
+          klantKlussen.length > 0 ? (
+            <div style={{ textAlign:"center", padding:"40px 20px" }}>
+              <div style={{ fontSize:48, marginBottom:12 }}>🔍</div>
+              <div style={{ fontWeight:700, fontSize:16, color:TX, marginBottom:8 }}>Vakmensen worden gezocht</div>
+              <div style={{ fontSize:13, color:MU, lineHeight:1.7, marginBottom:20 }}>
+                Je klus is geplaatst! Vakmensen in jouw regio kunnen nu een offerte sturen.<br/>Je krijgt hier een melding zodra iemand reageert.
+              </div>
+              <div style={{ background:W, borderRadius:16, padding:16, border:`1px solid ${BD}`, textAlign:"left" }}>
+                <Lbl>Jouw actieve klussen</Lbl>
+                {klantKlussen.slice(0,3).map((k,i) => {
+                  const label = TASKS.find(t=>t.id===k.taken?.[0])?.label || "Klus";
+                  const TkI = TASKS.find(t=>t.id===k.taken?.[0])?.Icon || Wrench;
+                  return (
+                    <div key={k.id} style={{ display:"flex", gap:10, alignItems:"center", padding:"10px 0", borderTop:i?`1px solid ${BD}`:"none" }}>
+                      <TkI size={20} weight="thin" color={CU}/>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontWeight:600, fontSize:13, color:TX }}>{label}</div>
+                        <div style={{ fontSize:11, color:MU }}>📍 {k.stad || "Onbekend"} · Wacht op vakmensen</div>
+                      </div>
+                      <Pill small color={G} bg="rgba(163,193,173,0.2)">Actief</Pill>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : (
+            <div style={{ textAlign:"center", padding:"48px 20px", color:MU }}>
+              <div style={{ fontSize:48, marginBottom:12 }}>💬</div>
+              <div style={{ fontWeight:700, fontSize:16, color:TX, marginBottom:6 }}>Nog geen matches</div>
+              <div style={{ fontSize:13, marginBottom:16 }}>Post een klus of zoek een vakman in jouw buurt.</div>
+              <OBtn label="Post een klus →" onClick={() => setTab("post")} full/>
+            </div>
+          )
         ) : matches.map(m => {
           const lastMsg = m.msgs[m.msgs.length-1];
           const dealDone = m.myConfirm && m.proConfirm;
@@ -1448,7 +1530,7 @@ const [role, setRole]   = useState(null);
 
         <Card>
           <Lbl>Mijn activiteit</Lbl>
-          {[["📋","Geplaatste klussen",klusCount.toString()],["💬","Actieve chats",matches.length.toString()],["✅","Deals gesloten",matches.filter(m=>m.myConfirm&&m.proConfirm).length.toString()]].map(([ic,lb,val],i) => (
+          {[["📋","Geplaatste klussen",(role==="klant"?klantKlussen.length:klusCount).toString()],["💬","Actieve chats",matches.length.toString()],["✅","Deals gesloten",matches.filter(m=>m.myConfirm&&m.proConfirm).length.toString()]].map(([ic,lb,val],i) => (
             <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
               padding:"10px 0", borderTop:i?`1px solid ${BD}`:"none" }}>
               <div style={{ display:"flex", gap:10 }}><span style={{ fontSize:18 }}>{ic}</span><span style={{ fontSize:14, color:TX }}>{lb}</span></div>
@@ -1502,7 +1584,7 @@ const [role, setRole]   = useState(null);
           Kies je rol om de juiste ervaring te zien
         </div>
         <div style={{ display:"flex", flexDirection:"column", gap:14 }}>
-          <div onClick={() => setRole("klant")}
+          <div onClick={async () => { setRole("klant"); await supabase.from('profiles').update({ rol: 'klant' }).eq('id', user.id); }}
             style={{ background:W, border:`2px solid ${BD}`, borderRadius:20, padding:"22px 20px",
               cursor:"pointer", display:"flex", gap:16, alignItems:"center",
               boxShadow:"0 2px 12px rgba(0,0,0,0.07)", transition:"all 0.15s" }}>
@@ -1514,7 +1596,7 @@ const [role, setRole]   = useState(null);
             </div>
             <span style={{ marginLeft:"auto", color:MU, fontSize:20 }}>›</span>
           </div>
-          <div onClick={() => setRole("vakman")}
+          <div onClick={async () => { setRole("vakman"); await supabase.from('profiles').update({ rol: 'vakman' }).eq('id', user.id); }}
             style={{ background:`linear-gradient(135deg,#1B1F3B,#2d2850)`, border:"2px solid transparent",
               borderRadius:20, padding:"22px 20px", cursor:"pointer",
               display:"flex", gap:16, alignItems:"center",
@@ -1538,7 +1620,7 @@ const [role, setRole]   = useState(null);
   const renderTab = () => {
     switch(tab) {
       case "home":    return <HomeScreen/>;
-      case "search":  return SearchScreen();
+      case "search":  return <SearchScreen/>;
       case "post":    return <PostScreen/>;
       case "matches": return <MatchesScreen/>;
       case "profiel": return <ProfielScreen/>;
